@@ -7,7 +7,7 @@ As of now the only documentation on the current design is available in the comme
 The comments in the current code are very limited but will be added over time (using Doxygen) and formal documentation on the type system and ABI,
 as well as tutorials meant for contract developers on how to use the serialization/deserialization tools and interact with the dynamic table system will eventually be written.
 
-Currently, there are two example program `reflection_test` and `reflection_test2` that demonstrate some of the existing features the new type system, 
+Currently, there are two example programs, `reflection_test1` and `reflection_test2`, which demonstrate some of the existing features of the new type system, 
 the C++ serialization/deserialization tools, and the ability to compare two instances of comparable objects directly using their raw data in serialized form.
 
 To compile simply use `cmake` and then `make`. The external dependencies (other than the C++ STL) include a few Boost libraries.
