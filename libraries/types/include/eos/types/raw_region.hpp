@@ -17,6 +17,22 @@ namespace eos { namespace types {
    public:
       raw_region() {};
 
+      raw_region(const raw_region& other) = default;
+      raw_region& operator=(const raw_region& other) = default;
+
+      raw_region(raw_region&& other)
+         : raw_data(std::move(other.raw_data))
+      {
+         other.raw_data.clear();
+      }
+
+      raw_region& operator=(raw_region&& other)
+      {
+         raw_data = std::move(other.raw_data);
+         other.raw_data.clear();
+         return *this;
+      }
+
       inline const vector<byte>& get_raw_data()const { return raw_data; }
 
       inline uint32_t capacity()const   { return raw_data.capacity(); }

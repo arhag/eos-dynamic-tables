@@ -416,6 +416,7 @@ EOS_TYPES_REFLECT_BUILTIN(uint32_t, builtin_uint32);
 EOS_TYPES_REFLECT_BUILTIN(int64_t,  builtin_int64);
 EOS_TYPES_REFLECT_BUILTIN(uint64_t, builtin_uint64);
 EOS_TYPES_REFLECT_BUILTIN(std::string, builtin_string);
+EOS_TYPES_REFLECT_BUILTIN(std::vector<uint8_t>, builtin_bytes);
 EOS_TYPES_REFLECT_BUILTIN(eos::types::rational, builtin_rational);
 EOS_TYPES_REFLECT_ARRAY(std::array);
 EOS_TYPES_REFLECT_VECTOR(std::vector);

@@ -76,7 +76,8 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( string )
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
 
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( bytes )
-   throw std::logic_error("Bytes should be represented in C++ by a vector of uint8_t.");
+   read_vector(b);
+//   throw std::logic_error("Bytes should be represented in C++ by a vector of uint8_t.");
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
 
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( rational )
