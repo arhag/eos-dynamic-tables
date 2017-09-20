@@ -73,7 +73,7 @@ int main()
    vector<type_id::index_t> abi_structs = { abi_tid.get_type_index(),
                                             abi_tc.get_struct_index<ABI::type_definition>(),
                                             abi_tc.get_struct_index<ABI::struct_t>(),
-                                            12, // Hacky solution to print the anonymous pair used in ABI::struct_t
+                                            abi_tc.get_struct_index<typename EOS_TYPES_REFLECT_GET_MEMBER_TYPE(ABI::struct_t, fields)::value_type>(),
                                             abi_tc.get_struct_index<ABI::table_index>(),
                                             abi_tc.get_struct_index<ABI::table>()
                                           };
