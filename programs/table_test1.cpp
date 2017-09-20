@@ -35,7 +35,8 @@ EOS_TYPES_CREATE_TABLE( type1,
                         (( vector<uint8_t>, nu_asc, ({2})   )) 
                       )
 
-EOS_TYPES_REGISTER_TYPES( (type1) )
+struct table_test1_types;
+EOS_TYPES_REGISTER_TYPES( table_test1_types, (type1) )
 
 int main()
 {
@@ -45,7 +46,7 @@ int main()
    using std::endl;
 
 
-   auto ac = initialize_types();
+   auto ac = types_initializer<table_test1_types>::init();
   
    types_constructor tc(ac.get_abi());
 

@@ -38,17 +38,38 @@ namespace eos { namespace types {
          return false;
 
       bool first = true;
+      bool expectingColon = false;
+      bool disallowColon = false;
       for( auto c : name )
       {
          if( first )
          {
             first = false;
-            if( !std::isalpha(c) && c != '_' )
+            if( !std::isalpha(c) && c != '_' && (c != ':' || disallowColon) )
                return false;
          }
-         else if( !std::isalnum(c) && c != '_' )
+         else if( !std::isalnum(c) && c != '_' && (c != ':' || disallowColon) )
             return false;
+
+         if( c == ':' )
+         {
+            if( expectingColon ) // Continuation of :: seperator
+            {
+               expectingColon = false;
+               disallowColon = true; // Make sure more than two consecutive colons are not allowed
+            }
+            else // Start of :: seperator
+               expectingColon = true;
+         }
+         else if( expectingColon )
+            return false; // Cannot have a single : as separator
+         else
+            disallowColon = false; // Reset consecutive colon counter
       }
+
+      if( expectingColon || disallowColon ) // Do not allow any trailing colons
+         return false;
+
       return true; 
    } 
 

@@ -30,13 +30,13 @@ public:
       : quantity()
    {}
 
+   // This constructor taking NumberType and the conversion method to NumberType below it allow this custom class to be used 
+   // as if it is the primitive integer type NumberType by the serialization/deserialization system.
+ 
    explicit token( NumberType v )
       : quantity(v)
    {}
 
-   // This assignment operator and the conversion to NumberType below it allow this custom class to be used 
-   // as if it is the primitive integer type NumberType by the serialization/deserialization system.
-   token& operator=( NumberType v ) { quantity = v; return *this; }    
    explicit operator NumberType()const { return quantity; }
 
    token& operator-=( const token& a ) {
@@ -111,8 +111,10 @@ public:
 private:
    uint32_t utc_seconds;
 
-   // The assignment operator from and conversion to the integer type can also be private if desired as long as the appropriate classes are added as friends (see above).
-   time_point_sec& operator=(uint32_t seconds) { utc_seconds = seconds; return *this; }
+   // The conversion method to the integer type (and the constructor taking the integer type) can also be private if desired 
+   // as long as the appropriate classes are added as friends (see above).
+   // In this case the constructor was kept public because it was useful for other purposes.
+   // But the conversion was kept private since users of this class are expected to use the more meaningful `sec_since_epoch` method.
    explicit operator uint32_t()const { return utc_seconds; }
 };
 
@@ -176,7 +178,8 @@ EOS_TYPES_CREATE_TABLE( ask,
                         (( expiration_key, u_asc,   ({3, 0}) ))
                       )
 
-EOS_TYPES_REGISTER_TYPES( (bid)(ask) )
+struct reflection_test2_types;
+EOS_TYPES_REGISTER_TYPES( reflection_test2_types, (bid)(ask) )
 
 int main()
 {
@@ -185,7 +188,7 @@ int main()
    using std::endl;
 
 
-   auto ac = initialize_types();
+   auto ac = types_initializer<reflection_test2_types>::init();
   
    types_constructor tc(ac.get_abi());
 

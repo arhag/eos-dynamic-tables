@@ -1,6 +1,6 @@
 #pragma once
 
-#include <eos/types/abi.hpp>
+#include <eos/types/abi_definition.hpp>
 
 #include <set>
 #include <map>

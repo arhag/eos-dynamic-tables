@@ -328,7 +328,7 @@ namespace eos { namespace types {
       {
          uint32_t storage = _storage;
          small_array_size_window::set(storage, 1);
-         return {storage};
+         return {storage, true};
       }
       else if (size == 1)
       {
@@ -350,7 +350,7 @@ namespace eos { namespace types {
 
       uint32_t storage = _storage;
       extra_metadata_window::set(storage, 0);
-      return {storage};
+      return {storage, true};
    }
 
    void print_builtin(std::ostream& os, type_id tid)

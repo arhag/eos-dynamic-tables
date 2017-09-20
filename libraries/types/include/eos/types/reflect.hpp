@@ -12,6 +12,7 @@
 #include <vector>
 #include <tuple>
 #include <string>
+#include <typeinfo>
 #include <boost/optional.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/preprocessor/facilities/overload.hpp>
@@ -23,6 +24,8 @@
 #include <boost/preprocessor/seq/size.hpp>
 #include <boost/preprocessor/seq/seq.hpp>
 #include <boost/preprocessor/tuple/elem.hpp>
+#include <boost/preprocessor/repetition/repeat.hpp>
+#include <boost/preprocessor/repetition/repeat_from_to.hpp>
 
 #ifndef _MSC_VER
   #define TEMPLATE template
@@ -85,6 +88,39 @@ bool const eos::types::reflector<T>::sorted_member_dir[BOOST_PP_SEQ_SIZE(member_
          sorted_member_count = 0 BOOST_PP_SEQ_FOR_EACH(EOS_TYPES_REFLECT_INCREMENTER, +, member_sort )       \
       };
 
+#define EOS_TYPES_REFLECT_GET_MEMBER_INFO_START                                                              \
+      static inline void get_member_info( const char* * * field_names,                                       \
+                                          const char* * * sorted_member_names,                               \
+                                          bool        * * sorted_member_dir   )                              \
+      {                                                                                                      
+
+#define EOS_TYPES_REFLECT_GET_MEMBER_INFO_NOOP                                                               \
+      EOS_TYPES_REFLECT_GET_MEMBER_INFO_START                                                                \
+      }
+
+#define EOS_TYPES_REFLECT_GET_MEMBER_INFO_COMMON(fields)                                                     \
+      EOS_TYPES_REFLECT_GET_MEMBER_INFO_START                                                                \
+         static const char* _field_names[BOOST_PP_SEQ_SIZE(fields)] = {                                      \
+            BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM(EOS_TYPES_REFLECT_STRINGIZE, _, fields))                \
+         };                                                                                                  \
+         *field_names = _field_names;                                                                        
+
+#define EOS_TYPES_REFLECT_GET_MEMBER_INFO_FIELDS_ONLY(fields)                                                \
+      EOS_TYPES_REFLECT_GET_MEMBER_INFO_COMMON(fields)                                                       \
+      }
+
+#define EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                                               \
+      EOS_TYPES_REFLECT_GET_MEMBER_INFO_COMMON(fields)                                                       \
+          static const char* _sorted_member_names[BOOST_PP_SEQ_SIZE(member_sort)] = {                        \
+            BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM(EOS_TYPES_REFLECT_MEMBER_NAME, _, member_sort))         \
+         };                                                                                                  \
+         *sorted_member_names = _sorted_member_names;                                                        \
+         bool               _sorted_member_dir[BOOST_PP_SEQ_SIZE(member_sort)] = {                           \
+            BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM(EOS_TYPES_REFLECT_SORT_ORDER, _, member_sort))          \
+         };                                                                                                  \
+         *sorted_member_dir   = _sorted_member_dir;                                                          \
+      }
+
 #define EOS_TYPES_REFLECT_STRUCT_START(T)                                                                    \
 namespace eos { namespace types {                                                                            \
    template <>                                                                                               \
@@ -92,9 +128,27 @@ namespace eos { namespace types {                                               
    {                                                                                                         \
       using is_defined = std::true_type;                                                                     \
       using is_struct  = std::true_type;                                                                     \
-      using type       = T;                                                                                  \
-      static const char* const name;                           
- 
+      using type       = T;                                                                                  
+
+#define EOS_TYPES_REFLECT_STRUCT_END_HELPER(NAME)                                                            \
+      static inline uint32_t register_struct(eos::types::abi_constructor& ac, const std::vector<type_id>& ft)\
+      {                                                                                                      \
+         const char* * field_names = nullptr;                                                                \
+         const char* * sorted_member_names = nullptr;                                                        \
+         bool        * sorted_member_dir = nullptr;                                                          \
+         get_member_info(&field_names, &sorted_member_names, &sorted_member_dir);                            \
+         return eos::types::register_struct(ac, ft, NAME,                                                    \
+                                            field_names, static_cast<uint32_t>(field_count),                 \
+                                            sorted_member_names, sorted_member_dir,                          \
+                                            static_cast<uint32_t>(sorted_member_count));                     \
+      }                                                                                                      \
+      static inline const char* name()                                                                       \
+      {                                                                                                      \
+         return NAME;                                                                                        \
+      }                                                                                                      \
+  };                                                                                                         \
+} }                                                                                                          
+
 #define EOS_TYPES_REFLECT_STRUCT_END(T, fields)                                                              \
       template<typename Visitor>                                                                             \
       static void visit(Visitor& _v)                                                                         \
@@ -113,39 +167,21 @@ namespace eos { namespace types {                                               
       {                                                                                                      \
          BOOST_PP_SEQ_FOR_EACH_I(EOS_TYPES_REFLECT_VISIT_MEMBER, 0, fields)                                  \
       }                                                                                                      \
-      static inline uint32_t register_struct(eos::types::abi_constructor& ac, const std::vector<type_id>& ft)\
-      {                                                                                                      \
-         return eos::types::register_struct(ac, ft, BOOST_PP_STRINGIZE(T),                                   \
-                                            field_names, static_cast<uint32_t>(field_count),                 \
-                                            sorted_member_names, sorted_member_dir,                          \
-                                            static_cast<uint32_t>(sorted_member_count));                     \
-      }                                                                                                      \
-  };                                                                                                         \
-} }                                                                                                          \
-const char* const eos::types::reflector<T>::name = BOOST_PP_STRINGIZE(T);    
+      EOS_TYPES_REFLECT_STRUCT_END_HELPER(BOOST_PP_STRINGIZE(T))
 
 #define EOS_TYPES_REFLECT_STRUCT_1  
 
 #define EOS_TYPES_REFLECT_STRUCT_2(T, fields)                                                                \
 EOS_TYPES_REFLECT_STRUCT_START(T)                                                                            \
-      static const char* const field_names[BOOST_PP_SEQ_SIZE(fields)];                                       \
-      static const char* const sorted_member_names[1];                                                       \
-      static bool const        sorted_member_dir[1];                                                         \
 EOS_TYPES_REFLECT_MEMBER_COUNT(fields, BOOST_PP_SEQ_NIL)                                                     \
-EOS_TYPES_REFLECT_STRUCT_END(T, fields)                                                                      \
-EOS_TYPES_REFLECT_FIELD_NAMES(T, fields)                                                                     \
-const char* const eos::types::reflector<T>::sorted_member_names[1] = {""};                                   \
-bool const        eos::types::reflector<T>::sorted_member_dir[1] = {false};
+EOS_TYPES_REFLECT_GET_MEMBER_INFO_FIELDS_ONLY(fields)                                                        \
+EOS_TYPES_REFLECT_STRUCT_END(T, fields)                                                 
 
 #define EOS_TYPES_REFLECT_STRUCT_3(T, fields, member_sort)                                                   \
 EOS_TYPES_REFLECT_STRUCT_START(T)                                                                            \
-      static const char* const field_names[BOOST_PP_SEQ_SIZE(fields)];                                       \
-      static const char* const sorted_member_names[BOOST_PP_SEQ_SIZE(member_sort)];                          \
-      static bool const        sorted_member_dir[BOOST_PP_SEQ_SIZE(member_sort)];                            \
 EOS_TYPES_REFLECT_MEMBER_COUNT(fields, member_sort)                                                          \
-EOS_TYPES_REFLECT_STRUCT_END(T, fields)                                                                      \
-EOS_TYPES_REFLECT_FIELD_NAMES(T, fields)                                                                     \
-EOS_TYPES_REFLECT_SORT_MEMBER(T, member_sort)                        
+EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                                                       \
+EOS_TYPES_REFLECT_STRUCT_END(T, fields)                         
 
 #if !BOOST_PP_VARIADICS_MSVC
 #define EOS_TYPES_REFLECT_STRUCT(...) \
@@ -162,8 +198,7 @@ namespace eos { namespace types {                                               
    {                                                                                                         \
       using is_defined = std::true_type;                                                                     \
       using is_struct  = std::true_type;                                                                     \
-      using type       = T;                                                                                  \
-      static const char* const name;                           
+      using type       = T;                                                                                  
 
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                                                   \
       template<typename Visitor>                                                                             \
@@ -188,49 +223,42 @@ namespace eos { namespace types {                                               
       }                                                                                                      \
       static inline uint32_t register_struct(eos::types::abi_constructor& ac, const std::vector<type_id>& ft)\
       {                                                                                                      \
+         const char* * field_names = nullptr;                                                                \
+         const char* * sorted_member_names = nullptr;                                                        \
+         bool        * sorted_member_dir = nullptr;                                                          \
+         get_member_info(&field_names, &sorted_member_names, &sorted_member_dir);                            \
          return eos::types::register_struct(ac, ft, BOOST_PP_STRINGIZE(T),                                   \
                                             field_names, static_cast<uint32_t>(field_count),                 \
                                             sorted_member_names, sorted_member_dir,                          \
                                             static_cast<uint32_t>(sorted_member_count),                      \
                                             BOOST_PP_STRINGIZE(B));                                          \
       }                                                                                                      \
-   };                                                                                                        \
-} }                                                                                                          \
-const char* const eos::types::reflector<T>::name = BOOST_PP_STRINGIZE(T);    
+      static inline const char* name()                                                                       \
+      {                                                                                                      \
+         return BOOST_PP_STRINGIZE(T);                                                                       \
+      }                                                                                                      \
+  };                                                                                                         \
+} }                                                                                                          
 
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED_1 
 
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED_2(T, B)                                                             \
 EOS_TYPES_REFLECT_STRUCT_DERIVED_START(T, B)                                                                 \
-      static const char* const field_names[1];                                                               \
-      static const char* const sorted_member_names[1];                                                       \
-      static bool const        sorted_member_dir[1];                                                         \
 EOS_TYPES_REFLECT_MEMBER_COUNT(BOOST_PP_SEQ_NIL, BOOST_PP_SEQ_NIL)                                           \
+EOS_TYPES_REFLECT_GET_MEMBER_INFO_NOOP()                                                                     \
 EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, BOOST_PP_SEQ_NIL)                                                 \
-const char* const eos::types::relector<T>::field_names[1] = {""};                                            \
-const char* const eos::types::relector<T>::sorted_member_names[1] = {""};                                    \
-bool const        eos::types::reflector<T>::sorted_member_dir[1] = {false};
 
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED_3(T, B, fields)                                                     \
 EOS_TYPES_REFLECT_STRUCT_DERIVED_START(T, B)                                                                 \
-      static const char* const field_names[BOOST_PP_SEQ_SIZE(fields)];                                       \
-      static const char* const sorted_member_names[1];                                                       \
-      static bool const        sorted_member_dir[1];                                                         \
 EOS_TYPES_REFLECT_MEMBER_COUNT(fields, BOOST_PP_SEQ_NIL)                                                     \
+EOS_TYPES_REFLECT_GET_MEMBER_INFO_FIELDS_ONLY(fields)                                                        \
 EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                                                           \
-EOS_TYPES_REFLECT_FIELD_NAMES(T, fields)                                                                     \
-const char* const eos::types::relector<T>::sorted_member_names[1] = {""};                                    \
-bool const        eos::types::reflector<T>::sorted_member_dir[1] = {false};
 
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED_4(T, B, fields, member_sort)                                        \
 EOS_TYPES_REFLECT_STRUCT_DERIVED_START(T, B)                                                                 \
-      static const char* const field_names[BOOST_PP_SEQ_SIZE(fields)];                                       \
-      static const char* const sorted_member_names[BOOST_PP_SEQ_SIZE(member_sort)];                          \
-      static bool const        sorted_member_dir[BOOST_PP_SEQ_SIZE(member_sort)];                            \
 EOS_TYPES_REFLECT_MEMBER_COUNT(fields, member_sort)                                                          \
+EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                                                       \
 EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                                                           \
-EOS_TYPES_REFLECT_FIELD_NAMES(T, fields)                                                                     \
-EOS_TYPES_REFLECT_SORT_MEMBER(T, member_sort)                        
 
 #if !BOOST_PP_VARIADICS_MSVC
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED(...) \
@@ -239,6 +267,75 @@ EOS_TYPES_REFLECT_SORT_MEMBER(T, member_sort)
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED(...) \
    BOOST_PP_CAT(BOOST_PP_OVERLOAD(EOS_TYPES_REFLECT_STRUCT_DERIVED_,__VA_ARGS__)(__VA_ARGS__),BOOST_PP_EMPTY())
 #endif
+
+//#define EOS_TYPES_REFLECT_GET_TYPENAME(T) BOOST_PP_STRINGIZE(T)
+
+#define EOS_TYPES_REFLECT_GET_TYPENAME(T) typeid(T).name()
+
+#define EOS_TYPES_REFLECT_TEMPLATE_ARG(r, index, data) , data T##index
+
+#define EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT( r, index, data )                                              \
+         _v.TEMPLATE operator()<data##index, type, index>( _s );
+
+#define EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT_TYPE( r, index, data )                                         \
+         _v.TEMPLATE operator()<data##index, type, index>();
+
+#define EOS_TYPES_REFLECT_PRODUCT_TYPE_HELPER(C, num_template_args, NAME, fields, member_sort)               \
+namespace eos { namespace types {                                                                            \
+   template<typename T0                                                                                      \
+            BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, typename)>         \
+   struct reflector<C<T0                                                                                     \
+                      BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, )>>      \
+   {                                                                                                         \
+      using is_defined = std::true_type;                                                                     \
+      using is_struct  = std::true_type;                                                                     \
+      using type       = C<T0                                                                                \
+                           BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, )>; \
+EOS_TYPES_REFLECT_MEMBER_COUNT(fields, member_sort)                                                          \
+EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                                                       \
+      template<typename Visitor>                                                                             \
+      static void visit(Visitor& _v)                                                                         \
+      {                                                                                                      \
+         if( !_v.TEMPLATE operator()<type>( NAME ) ) { return; }                                             \
+         BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT_TYPE, T)                   \
+         _v.TEMPLATE operator()<type>();                                                                     \
+      }                                                                                                      \
+      template<typename Visitor>                                                                             \
+      static void visit(const type& _s, const Visitor& _v)                                                   \
+      {                                                                                                      \
+         BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT, T)                        \
+      }                                                                                                      \
+      template<typename Visitor>                                                                             \
+      static void visit(type& _s, const Visitor& _v)                                                         \
+      {                                                                                                      \
+         BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT, T)                        \
+      }                                                                                                      \
+EOS_TYPES_REFLECT_STRUCT_END_HELPER(NAME)                         
+
+#define EOS_TYPES_REFLECT_ANONYMOUS_FIELD(r, index, data) (data##index)
+
+#define EOS_TYPES_REFLECT_ANONYMOUS_FIELD_ASCENDING(r, index, data) ((data##index, asc))
+
+#if 0
+
+#define EOS_TYPES_STRINGIZE_ALL_HELPER(...) #__VA_ARGS__
+
+#define EOS_TYPES_STRINGIZE_ALL(...) EOS_TYPES_STRINGIZE_ALL_HELPER(__VA_ARGS__)
+
+#define EOS_TYPES_REFLECT_PRODUCT_TYPE(C, Ts)                                                                \
+EOS_TYPES_REFLECT_PRODUCT_TYPE_HELPER(C, BOOST_PP_SEQ_SIZE(Ts),                                              \
+      EOS_TYPES_STRINGIZE_ALL(C<BOOST_PP_SEQ_ENUM(Ts)>),                                                     \
+      BOOST_PP_REPEAT(BOOST_PP_SEQ_SIZE(Ts), EOS_TYPES_REFLECT_ANONYMOUS_FIELD, f),                          \
+      BOOST_PP_REPEAT(BOOST_PP_SEQ_SIZE(Ts), EOS_TYPES_REFLECT_ANONYMOUS_FIELD_ASCENDING, f) )
+
+#endif
+
+#define EOS_TYPES_REFLECT_TUPLE(C, num_template_args)                                                        \
+EOS_TYPES_REFLECT_PRODUCT_TYPE_HELPER(C, num_template_args,                                                  \
+      EOS_TYPES_REFLECT_GET_TYPENAME(type),                                                                  \
+      BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_ANONYMOUS_FIELD, f),                              \
+      BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_ANONYMOUS_FIELD_ASCENDING, f) )
+
 
 #define EOS_TYPES_REFLECT_SIMPLE_VISIT                         \
       template<typename Visitor>                               \
@@ -353,18 +450,24 @@ namespace eos { namespace types {                                               
 
 #define EOS_TYPES_REFLECT_REGISTER_STRUCT(r, v, s) eos::types::reflector<s>::visit(v);
 
-#define EOS_TYPES_REGISTER_TYPES_1(tables)         EOS_TYPES_REGISTER_TYPES_2(tables, BOOST_PP_SEQ_NIL)
+#define EOS_TYPES_REGISTER_TYPES_1 
 
-#define EOS_TYPES_REGISTER_TYPES_2(tables, structs)                                                          \
+#define EOS_TYPES_REGISTER_TYPES_2(name, tables) EOS_TYPES_REGISTER_TYPES_3(name, tables, BOOST_PP_SEQ_NIL)
+
+#define EOS_TYPES_REGISTER_TYPES_3(name, tables, structs)                                                    \
 namespace eos { namespace types {                                                                            \
-   static abi_constructor initialize_types()                                                                 \
+   template <>                                                                                               \
+   struct types_initializer<name>                                                                            \
    {                                                                                                         \
-      abi_constructor ac;                                                                                    \
-      type_discovery_visitor vis(ac);                                                                        \
-      BOOST_PP_SEQ_FOR_EACH(EOS_TYPES_REFLECT_REGISTER_TABLE,  vis, tables)                                  \
-      BOOST_PP_SEQ_FOR_EACH(EOS_TYPES_REFLECT_REGISTER_STRUCT, vis, structs)                                 \
-      return ac;                                                                                             \
-   }                                                                                                         \
+      static abi_constructor init()                                                                          \
+      {                                                                                                      \
+         abi_constructor ac;                                                                                 \
+         type_discovery_visitor vis(ac);                                                                     \
+         BOOST_PP_SEQ_FOR_EACH(EOS_TYPES_REFLECT_REGISTER_TABLE,  vis, tables)                               \
+         BOOST_PP_SEQ_FOR_EACH(EOS_TYPES_REFLECT_REGISTER_STRUCT, vis, structs)                              \
+         return ac;                                                                                          \
+      }                                                                                                      \
+   };                                                                                                        \
 } } 
 
 #if !BOOST_PP_VARIADICS_MSVC
@@ -389,6 +492,11 @@ namespace eos { namespace types {
       using is_defined = std::false_type;
    };
 
+   template<typename T>
+   struct types_initializer
+   {
+   };
+
    struct rational
    {
       rational()
@@ -402,25 +510,41 @@ namespace eos { namespace types {
       int64_t  numerator;
       uint64_t denominator;
    };
+
+   uint32_t register_struct(abi_constructor& ac, const std::vector<type_id>& field_types, const char* struct_name, 
+                            const char* const field_names[], uint32_t field_names_length,
+                            const char* const sorted_member_names[], bool const sorted_member_dir[], uint32_t sorted_member_count,
+                            const char* base_name = nullptr);
+
 } }
 
 
-EOS_TYPES_REFLECT_BUILTIN(bool,     builtin_bool);
-EOS_TYPES_REFLECT_BUILTIN(char,     builtin_uint8);
-EOS_TYPES_REFLECT_BUILTIN(int8_t,   builtin_int8);
-EOS_TYPES_REFLECT_BUILTIN(uint8_t,  builtin_uint8);
-EOS_TYPES_REFLECT_BUILTIN(int16_t,  builtin_int16);
-EOS_TYPES_REFLECT_BUILTIN(uint16_t, builtin_uint16);
-EOS_TYPES_REFLECT_BUILTIN(int32_t,  builtin_int32);
-EOS_TYPES_REFLECT_BUILTIN(uint32_t, builtin_uint32);
-EOS_TYPES_REFLECT_BUILTIN(int64_t,  builtin_int64);
-EOS_TYPES_REFLECT_BUILTIN(uint64_t, builtin_uint64);
-EOS_TYPES_REFLECT_BUILTIN(std::string, builtin_string);
-EOS_TYPES_REFLECT_BUILTIN(std::vector<uint8_t>, builtin_bytes);
-EOS_TYPES_REFLECT_BUILTIN(eos::types::rational, builtin_rational);
-EOS_TYPES_REFLECT_ARRAY(std::array);
-EOS_TYPES_REFLECT_VECTOR(std::vector);
-EOS_TYPES_REFLECT_OPTIONAL(boost::optional);
+EOS_TYPES_REFLECT_BUILTIN(bool,     builtin_bool)
+EOS_TYPES_REFLECT_BUILTIN(char,     builtin_uint8)
+EOS_TYPES_REFLECT_BUILTIN(int8_t,   builtin_int8)
+EOS_TYPES_REFLECT_BUILTIN(uint8_t,  builtin_uint8)
+EOS_TYPES_REFLECT_BUILTIN(int16_t,  builtin_int16)
+EOS_TYPES_REFLECT_BUILTIN(uint16_t, builtin_uint16)
+EOS_TYPES_REFLECT_BUILTIN(int32_t,  builtin_int32)
+EOS_TYPES_REFLECT_BUILTIN(uint32_t, builtin_uint32)
+EOS_TYPES_REFLECT_BUILTIN(int64_t,  builtin_int64)
+EOS_TYPES_REFLECT_BUILTIN(uint64_t, builtin_uint64)
+EOS_TYPES_REFLECT_BUILTIN(std::string, builtin_string)
+EOS_TYPES_REFLECT_BUILTIN(std::vector<uint8_t>, builtin_bytes)
+EOS_TYPES_REFLECT_BUILTIN(eos::types::rational, builtin_rational)
+EOS_TYPES_REFLECT_BUILTIN(eos::types::type_id, builtin_uint32)
+
+EOS_TYPES_REFLECT_ARRAY(std::array)
+EOS_TYPES_REFLECT_VECTOR(std::vector)
+EOS_TYPES_REFLECT_OPTIONAL(boost::optional)
+
+EOS_TYPES_REFLECT_TUPLE(std::pair, 2)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 2)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 3)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 4)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 5)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 6)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 7)
 
 namespace eos { namespace types {
 
@@ -457,7 +581,7 @@ namespace eos { namespace types {
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
       operator()(bool unique, bool ascending, const vector<uint16_t>& mapping) // Table index of struct key type
       {
-         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name);
+         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name());
          if( cur_struct_index >= 0 )
          {
             tid = type_id::make_struct(static_cast<uint32_t>(cur_struct_index));
@@ -475,7 +599,7 @@ namespace eos { namespace types {
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
       operator()(bool) // Called after processing the indices of the table.
       {
-         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name);
+         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name());
          if( cur_struct_index < 0 )
          {
             type_discovery_visitor vis(ac);
@@ -487,15 +611,15 @@ namespace eos { namespace types {
 
       template<class Class>
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value, bool>::type
-      operator()(const char* name) // Called before processing the fields of the struct or its base.
+      operator()(const char* name) // Called before processing the fields of a product type such as a struct or its base or a tuple/pair.
       {
-         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name);
+         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name());
          if( cur_struct_index >= 0 )
          {
             tid = type_id::make_struct(static_cast<uint32_t>(cur_struct_index));
             return false; // Do not bother processing this struct because it has already been processed or is in the middle of being processed..
          }
-         ac.declare_struct(eos::types::reflector<Class>::name);
+         ac.declare_struct(eos::types::reflector<Class>::name());
          return true;
       }
 
@@ -503,7 +627,7 @@ namespace eos { namespace types {
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Base>::is_struct::value>::type
       operator()()const
       {
-         if( ac.get_struct_index(eos::types::reflector<Base>::name) >= 0 )
+         if( ac.get_struct_index(eos::types::reflector<Base>::name()) >= 0 )
             return;
 
          type_discovery_visitor vis(ac);
@@ -512,7 +636,7 @@ namespace eos { namespace types {
 
       template<class Class>
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
-      operator()() // Called after processing the fields of the struct.
+      operator()() // Called after processing the fields of the product type
       {
          tid = type_id::make_struct(eos::types::reflector<Class>::register_struct(ac, field_types));
          field_types.clear();
@@ -522,7 +646,7 @@ namespace eos { namespace types {
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Member>::is_struct::value>::type
       operator()(const char* name, uint32_t member_index)
       {
-         auto index = ac.get_struct_index(eos::types::reflector<Member>::name);
+         auto index = ac.get_struct_index(eos::types::reflector<Member>::name());
         
          if( index >= 0 )
          {
@@ -543,6 +667,33 @@ namespace eos { namespace types {
          eos::types::reflector<Member>::visit(vis);
          field_types.push_back(vis.tid);
       }
+
+      template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
+      typename std::enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Member>::is_struct::value>::type
+      operator()()
+      {
+         auto index = ac.get_struct_index(eos::types::reflector<Member>::name());
+        
+         if( index >= 0 )
+         {
+            field_types.push_back(type_id::make_struct(index));
+            return;
+         }
+
+         type_discovery_visitor vis(ac); 
+         eos::types::reflector<Member>::visit(vis);
+         field_types.push_back(vis.tid);
+      }
+
+      template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
+      typename std::enable_if<eos::types::reflector<Class>::is_struct::value && !eos::types::reflector<Member>::is_struct::value>::type
+      operator()()
+      {
+         type_discovery_visitor vis(ac);
+         eos::types::reflector<Member>::visit(vis);
+         field_types.push_back(vis.tid);
+      }
+
 
       template<class Container>
       typename std::enable_if<eos::types::reflector<Container>::is_array::value>::type
@@ -669,9 +820,5 @@ namespace eos { namespace types {
 
    };
 
-   uint32_t register_struct(abi_constructor& ac, const std::vector<type_id>& field_types, const char* struct_name, 
-                            const char* const field_names[], uint32_t field_names_length,
-                            const char* const sorted_member_names[], bool const sorted_member_dir[], uint32_t sorted_member_count,
-                            const char* base_name = nullptr);
 } }
 

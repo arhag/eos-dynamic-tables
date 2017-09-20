@@ -49,10 +49,16 @@ EOS_TYPES_CREATE_TABLE( type1,  ((uint32_t, nu_asc, ({0}) ))((type3,    u_desc, 
 //                                                                                                                     nu_desc // non-unique index sorted according to key_type in descending order
 //                                                                                                                   }    
 
-EOS_TYPES_REGISTER_TYPES( (type1), (type2) )
-//                        tables,  other structs
+
+struct reflection_test1_types;
+EOS_TYPES_REGISTER_TYPES( reflection_test1_types, (type1), (type2) )
+//                        name,                   tables,  other structs
 // By registering the table for type1, it automatically registers type1 (since it is the object type of the table) and type3 (since it is the key type of one of the indices of the table).
 // However, type2 is not discovered from the table of type1, so it needs to be explicitly registered through specifying it within the other structs arguments to the macro.
+
+
+struct abi_reflection;
+EOS_TYPES_REGISTER_TYPES( abi_reflection, BOOST_PP_SEQ_NIL, (eos::types::ABI) )
 
 int main()
 {
@@ -60,10 +66,41 @@ int main()
    using std::cout;
    using std::endl;
 
+   auto abi_ac = types_initializer<abi_reflection>::init();
+   types_constructor abi_tc(abi_ac.get_abi());
+   auto abi_tid = type_id::make_struct(abi_tc.get_struct_index<ABI>());
 
-   auto ac = initialize_types();
-  
-   types_constructor tc(ac.get_abi());
+   vector<type_id::index_t> abi_structs = { abi_tid.get_type_index(),
+                                            abi_tc.get_struct_index<ABI::type_definition>(),
+                                            abi_tc.get_struct_index<ABI::struct_t>(),
+                                            12, // Hacky solution to print the anonymous pair used in ABI::struct_t
+                                            abi_tc.get_struct_index<ABI::table_index>(),
+                                            abi_tc.get_struct_index<ABI::table>()
+                                          };
+   for( auto indx : abi_structs )
+   {
+      abi_tc.print_type(cout, type_id::make_struct(indx));
+      cout << "Members:" << endl;
+      for( auto f : abi_tc.get_all_members(indx) )
+         cout << f << endl;
+      cout << endl;
+   }
+
+   auto abi_tm = abi_tc.destructively_extract_types_manager();
+   serialization_region abi_serializer(abi_tm);
+
+   auto ac = types_initializer<reflection_test1_types>::init();
+   abi_serializer.write_type(ac.get_abi(), abi_tid);
+
+   cout << "Raw data of serialization of abi:" << std::hex << endl;
+   for( auto b : abi_serializer.get_raw_data() )
+      cout << (int) b << " ";
+   cout << std::dec << endl << endl;
+
+   ABI abi;
+   abi_serializer.read_type(abi, abi_tid);
+
+   types_constructor tc(abi);
 
    auto print_type_info = [&](type_id tid)
    {

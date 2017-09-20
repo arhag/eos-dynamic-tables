@@ -110,10 +110,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
             eos::types::reflector<Base>::visit(b, vis);
          }
  
-         template<typename Member, class Class, Member (Class::*member)>
-         typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
-         operator()(const Class& c, const char* name, uint32_t member_index)const
-         {
+
+         write_visitor make_visitor_for_product_type_member( uint32_t member_index )const
+         { 
             auto f = tm.get_member(tid.get_type_index(), member_index);
             auto member_tid = f.get_type_id();
             auto member_offset = offset;
@@ -127,10 +126,25 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
                member_offset += f.get_offset();
             }
 
-            write_visitor vis(tm, r, member_tid, member_offset); 
+            return {tm, r, member_tid, member_offset};
+         }
+
+         template<typename Member, class Class, Member (Class::*member)>
+         typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
+         operator()(const Class& c, const char* name, uint32_t member_index)const
+         {
+            auto vis = make_visitor_for_product_type_member(member_index);
             eos::types::reflector<Member>::visit(c.*member, vis);
          }
-    
+         
+         template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
+         typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
+         operator()(const Class& c)const
+         {
+            auto vis = make_visitor_for_product_type_member(static_cast<uint32_t>(Index));
+            eos::types::reflector<Member>::visit(std::get<Index>(c), vis); 
+         }
+ 
          template<class Container>
          typename std::enable_if<eos::types::reflector<Container>::is_array::value>::type
          operator()(const Container& c)const

@@ -49,7 +49,7 @@ namespace eos { namespace types {
       typename std::enable_if<eos::types::reflector<T>::is_struct::value, type_id::index_t>::type
       get_struct_index()const
       {
-         return get_struct_index(eos::types::reflector<T>::name);
+         return get_struct_index(eos::types::reflector<T>::name());
       }
 
 

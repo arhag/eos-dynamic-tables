@@ -123,7 +123,7 @@ namespace eos { namespace types {
       static const uint8_t  small_array_limit = 64;
       
       type_id(); 
-      type_id(uint32_t storage);
+      explicit type_id(uint32_t storage); // Also makes it possible to deserialize type_id from a builtin UInt32
       type_id(builtin b, uint8_t num_elements = 1);
  
       static type_id make_struct(index_t index, uint8_t num_elements = 1);
@@ -134,6 +134,9 @@ namespace eos { namespace types {
       static type_id make_optional_struct(index_t index);
       static type_id make_vector_of_structs(index_t index);
       static type_id make_vector_of_builtins(builtin b, uint8_t num_elements = 1);
+
+      // The method is needed to serialize type_id as a builtin UInt32
+      inline explicit operator uint32_t()const { return _storage; }
 
       static size_align  get_builtin_type_size_align(builtin bt); 
       static const char* get_builtin_type_name(builtin bt);
