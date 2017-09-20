@@ -186,6 +186,7 @@ namespace eos { namespace types {
          case builtin_string:
          case builtin_bytes:
          case builtin_any:
+            return {8, 4};
             break;
          case builtin_rational:
             return {16, 8};

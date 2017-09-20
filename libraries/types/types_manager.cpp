@@ -17,8 +17,8 @@ namespace eos { namespace types {
 
    type_id::size_align types_manager::get_size_align(type_id tid, uint32_t* cache_ptr)const
    {
-      uint8_t  align = 8;
-      uint32_t size  = align;
+      uint8_t  align = 4;
+      uint32_t size  = 8;
       
       switch( tid.get_type_class() )
       {
