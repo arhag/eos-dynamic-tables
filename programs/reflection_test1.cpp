@@ -92,11 +92,9 @@ int main()
    auto ac = types_initializer<reflection_test1_types>::init();
    abi_serializer.write_type(ac.get_abi(), abi_tid);
 
-   cout << "Raw data of serialization of abi:" << std::hex << endl;
-   for( auto b : abi_serializer.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl << endl;
-
+   cout << "Raw data of serialization of abi:" << endl;
+   cout << abi_serializer.get_raw_region() << endl;
+   
    ABI abi;
    abi_serializer.read_type(abi, abi_tid);
 
@@ -143,10 +141,7 @@ int main()
 
    r.write_type(s1, type1_tid);
       
-   cout << "Raw data of serialization of s1:" << std::hex << endl;
-   for( auto b : r.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl;
+   cout << "Raw data of serialization of s1:" << endl << r.get_raw_region();
 
    std::ostream_iterator<uint32_t> oi(cout, ", ");
    cout << "Reading back struct from raw data." << endl;
@@ -187,10 +182,7 @@ int main()
    r.clear();
    r.write_type(s2, type2_tid);
 
-   cout << "Raw data of serialization of s2:" << std::hex << endl;
-   for( auto b : r.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl;
+   cout << "Raw data of serialization of s2:" << endl << r.get_raw_region();
 
    cout << "Reading back struct from raw data." << endl;
    type2 s4;

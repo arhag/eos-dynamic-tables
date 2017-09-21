@@ -249,30 +249,21 @@ int main()
 
    r.write_type( a1, ask_tid );
  
-   cout << "Raw data of serialization of a1:" << std::hex << endl;
-   for( auto b : r.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl;
+   cout << "Raw data of serialization of a1:" << endl << r.get_raw_region();
 
    raw_region a1_data = r.get_raw_region();  
 
    r.clear();   
    r.write_type( b1, bid_tid );
  
-   cout << "Raw data of serialization of b1:" << std::hex << endl;
-   for( auto b : r.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl;
+   cout << "Raw data of serialization of b1:" << endl << r.get_raw_region();
 
    raw_region b1_data = r.get_raw_region();  
 
    r.clear();   
    r.write_type( b2, bid_tid );
  
-   cout << "Raw data of serialization of b2:" << std::hex << endl;
-   for( auto b : r.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl;
+   cout << "Raw data of serialization of b2:" << endl << r.get_raw_region();
    cout << endl;
 
    raw_region b2_data = r.get_raw_region();  
@@ -285,10 +276,7 @@ int main()
    r.clear();
    r.write_type( rational(13, 14), type_id(type_id::builtin_rational) );
 
-   cout << "Raw data of serialization of rat_key:" << std::hex << endl;
-   for( auto b : r.get_raw_data() )
-      cout << (int) b << " ";
-   cout << std::dec << endl;
+   cout << "Raw data of serialization of rat_key:" << endl << r.get_raw_region();
 
    raw_region rat_key = r.get_raw_region();
 

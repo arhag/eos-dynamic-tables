@@ -106,6 +106,10 @@ namespace eos { namespace types {
             b &= byte_masks[index+1];
       }
 
+      void print_raw_data(std::ostream& os, uint32_t offset = 0, uint32_t size = 4096 )const;
+
+      friend std::ostream& operator<<(std::ostream& os, const raw_region& r);
+
    private:
       vector<byte> raw_data;
    };

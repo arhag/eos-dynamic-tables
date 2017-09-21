@@ -1,6 +1,11 @@
 #include <eos/types/raw_region.hpp>
 #include <eos/types/field_metadata.hpp>
 
+#include <ostream>
+#include <iomanip>
+#include <stdexcept>
+#include <boost/io/ios_state.hpp>
+
 namespace eos { namespace types {
       
    const byte raw_region::byte_masks[16] = {0x01, 0xFE,   // Mask for each bit position, and its inversion.
@@ -31,6 +36,54 @@ namespace eos { namespace types {
    void raw_region::clear()
    {
       raw_data.clear();
+   }
+   
+   void raw_region::print_raw_data(std::ostream& os, uint32_t offset, uint32_t size)const
+   {
+      using std::endl;
+
+      boost::io::ios_flags_saver ifs( os );
+
+      if( offset >= offset_end() )
+         throw std::invalid_argument("Raw region subset is empty.");
+
+      if( size > 4096 )
+         throw std::invalid_argument("Raw region subset is too large to print.");
+
+      auto col = 0;
+      auto row = 0;
+      os << std::hex << "    Z = ";
+      for( auto i = 0; i < 16; ++i )
+      {
+         if( i == 8 )
+            os << "  ";
+         os << i << "  ";
+      }
+      os << endl << "0xYYZ |";
+      os << std::setfill('-') << std::setw(3*16 + 2) << "";
+      auto end = get_raw_data().begin() + offset + std::min(size, offset_end() - offset);
+      for( auto itr = get_raw_data().begin() + offset; itr < end; ++itr )
+      {
+         if( col == 0 )
+            os << endl << "0x" << std::setfill('0') << std::setw(2) << row << "Z | ";
+
+         os << std::setfill('0') << std::setw(2) << (int) *itr << " ";
+         ++col;
+         if( col == 16 )
+         {
+            ++row;
+            col = 0;
+         }
+         else if( col == 8 )
+            os << "  ";
+      }
+      os << endl;
+   }
+
+   std::ostream& operator<<(std::ostream& os, const raw_region& r)
+   {
+      r.print_raw_data(os);
+      return os;
    }
 
 } }

@@ -65,16 +65,10 @@ int main()
          cout << f << endl;
    };
 
-   auto print_raw_data = [&](const raw_region& r, const char* name = nullptr)
+   auto print_raw_data = [&](const raw_region& r, const char* name)
    {
-      if( name != nullptr )
-         cout << "Raw data of serialization of " << name << ":" << endl; 
-      cout << std::hex;
-      for( auto b : r.get_raw_data() )
-         cout << (int) b << " ";
-      cout << std::dec;
-      if( name != nullptr )
-        cout << endl;
+      cout << "Raw data of serialization of " << name << ":" << endl;
+      cout << r << endl; 
    };
 
    auto type1_tid = type_id::make_struct(tc.get_struct_index<type1>());
@@ -133,27 +127,21 @@ int main()
    cout << "Table 'type1' objects sorted by index 1 (field 'a' of type1 as the key sorted in ascending order):" << endl;
    for( const auto& obj : table_type1.get<1>() )
    {
-      cout << "Object id = " << obj.id << " and data = ";
-      print_raw_data(obj.data);
-      cout << endl;
+      cout << "Object id = " << obj.id << " and data = " << endl << obj.data << endl;
    }   
    cout << endl;
 
    cout << "Table 'type1' objects sorted by index 2 (type2, mapped to fields 'b' and 'a' of type1, as the key sorted by type2's sorting specification except in descending order):" << endl;
    for( const auto& obj : table_type1.get<2>() )
    {
-      cout << "Object id = " << obj.id << " and data = ";
-      print_raw_data(obj.data);
-      cout << endl;
+      cout << "Object id = " << obj.id << " and data = " << endl << obj.data << endl;
    }   
    cout << endl;
 
    cout << "Table 'type1' objects sorted by index 3 (field 'c' of type1 as the key sorted in ascending lexicographical order):" << endl;
    for( const auto& obj : table_type1.get<3>() )
    {
-      cout << "Object id = " << obj.id << " and data = ";
-      print_raw_data(obj.data);
-      cout << endl;
+      cout << "Object id = " << obj.id << " and data = " << endl << obj.data << endl;
    }   
    cout << endl;
 
@@ -168,18 +156,14 @@ int main()
    if( itr != table_type1.get<1>().end() )
    {
       cout << "Found lower bound using index 1 of table 'type1' and a key of value " << v << ":" << endl;
-      cout << "Object id = " << itr->id << " and data = ";
-      print_raw_data(itr->data);
-      cout << endl;
+      cout << "Object id = " << itr->id << " and data = " << endl << itr->data << endl;
    }
 
    itr = table_type1.get<1>().upper_bound(k1, dkc1);
    if( itr != table_type1.get<1>().end() )
    {
       cout << "Found upper bound using index 1 of table 'type1' and a key of value " << v << ":" << endl;
-      cout << "Object id = " << itr->id << " and data = ";
-      print_raw_data(itr->data);
-      cout << endl;
+      cout << "Object id = " << itr->id << " and data = " << endl << itr->data << endl;
    }
 
    return 0;
