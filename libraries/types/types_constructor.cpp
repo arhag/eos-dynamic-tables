@@ -1176,14 +1176,11 @@ namespace eos { namespace types {
    struct print_type_visitor
    {
       const types_constructor& tc;
-      std::ostream&      os;
-      vector<type_id::index_t>& struct_indices;
-      map<type_id::index_t, uint32_t>& struct_index_map;
-      uint32_t template_start_index;
+      std::ostream&            os;
       bool start_of_variant;
 
-      print_type_visitor(const types_constructor& tc, std::ostream& os, vector<type_id::index_t>& struct_indices, map<type_id::index_t, uint32_t>& struct_index_map, uint32_t template_start_index) 
-         : tc(tc), os(os), struct_indices(struct_indices), struct_index_map(struct_index_map), template_start_index(template_start_index), start_of_variant(false)
+      print_type_visitor(const types_constructor& tc, std::ostream& os) 
+         : tc(tc), os(os), start_of_variant(false)
       {}
 
       using traversal_shortcut = types_manager::traversal_shortcut;
@@ -1228,10 +1225,8 @@ namespace eos { namespace types {
             return types_manager::no_deeper;
          }
 
-         auto res = struct_index_map.emplace(t.index, struct_indices.size());
-         if( res.second )
-            struct_indices.push_back(t.index);
-         os << "T" << (res.first->second + template_start_index);
+         auto itr = tc.valid_struct_start_indices.find(t.index);
+         os << itr->second;
          return types_manager::no_deeper;
       }
       
@@ -1267,7 +1262,7 @@ namespace eos { namespace types {
          else
          {
             os << "Array<";
-            tc.print_type(os, t.element_type, struct_indices, struct_index_map, template_start_index);
+            tc.tm.traverse_type(t.element_type, *this);
             os << ", " << t.num_elements;
          }
          os << ">";
@@ -1278,7 +1273,7 @@ namespace eos { namespace types {
       traversal_shortcut operator()(vector_type t) 
       {
          os << "Vector<";
-         tc.print_type(os, t.element_type, struct_indices, struct_index_map, template_start_index);
+         tc.tm.traverse_type(t.element_type, *this);
          os << ">";
          return types_manager::no_deeper; 
       }
@@ -1286,7 +1281,7 @@ namespace eos { namespace types {
       traversal_shortcut operator()(optional_type t) 
       {
          os << "Optional<";
-         tc.print_type(os, t.element_type, struct_indices, struct_index_map, template_start_index);
+         tc.tm.traverse_type(t.element_type, *this);
          os << ">";  
          return types_manager::no_deeper; 
       }
@@ -1299,38 +1294,34 @@ namespace eos { namespace types {
    };
 
 
-   void types_constructor::print_type(std::ostream& os, const type_id& tid, vector<uint32_t>& struct_indices, map<uint32_t, uint32_t>& struct_index_map, uint32_t template_start_index)const
-   {
-      print_type_visitor v(*this, os, struct_indices, struct_index_map, template_start_index);
-      tm.traverse_type(tid, v);
-   }
-
-   uint32_t types_constructor::print_type(std::ostream& os, const type_id& tid, uint32_t template_start_index, bool inline_struct)const
+   void types_constructor::print_type(std::ostream& os, type_id tid)const
    {
       check_disabled();
 
       boost::io::ios_flags_saver ifs( os );
 
+      print_type_visitor v(*this, os);
+      
       os << std::dec;
-     
-      if( !inline_struct && tid.get_type_class() == type_id::struct_type )
+      static const char* tab        = "    ";
+      static const char* ascending  = "ascending";
+      static const char* descending = "descending";
+    
+      if( tid.get_type_class() == type_id::struct_type )
       {
-         static const char* tab        = "    ";
-         static const char* ascending  = "ascending";
-         static const char* descending = "descending";
-
          auto struct_index = tid.get_type_index();
-         auto itr = valid_struct_start_indices.find(struct_index);
-         if( itr == valid_struct_start_indices.end() )
+         auto struct_itr = valid_struct_start_indices.find(struct_index);
+         if( struct_itr == valid_struct_start_indices.end() )
          {
             if( valid_tuple_start_indices.find(struct_index) == valid_tuple_start_indices.end() )
                throw std::invalid_argument("Struct or tuple does not exist.");
 
-            // Otherwise it is a tuple and so it needs to be handled by the same code that handles non-struct types.
+            // Otherwise it is a tuple and so it needs to be handled by the same code that handles other non-struct types.
          }
          else
          {
-            auto res = tm.get_base_info(itr->first);
+            const auto& struct_name = struct_itr->second;
+            auto res = tm.get_base_info(struct_index);
             bool base_exists = (res.first != type_id::type_index_limit);
             auto base_itr = valid_struct_start_indices.end();
             if( base_exists )
@@ -1340,12 +1331,11 @@ namespace eos { namespace types {
                   throw std::runtime_error("Invariant failure: Base of valid struct does not exist.");
             }
 
-            os << "struct ";
-            os <<  itr->second << " /* struct(" << itr->first << ") */";
+            os << "struct " << struct_name;
             if( base_exists )
             {
                os << " : ";
-               os << base_itr->second << " /* struct(" << base_itr->first << ") */";
+               os << base_itr->second;
                if( res.second != field_metadata::unsorted )
                {
                   os << " // Base sorted in " << ((res.second == field_metadata::ascending) ? ascending : descending);
@@ -1354,12 +1344,12 @@ namespace eos { namespace types {
             }
             os << std::endl << "{" << std::endl;
 
-            auto r = tm.get_all_members(itr->first);
+            auto r = tm.get_all_members(struct_index);
             uint32_t field_seq_num = 0;
             for( auto itr = r.begin() + (base_exists ? 1 : 0); itr != r.end(); ++field_seq_num, ++itr)
             {
                os << tab;
-               template_start_index = print_type(os, itr->get_type_id(), template_start_index, true);
+               tm.traverse_type(itr->get_type_id(), v);
                os << " f" << field_seq_num << ";";
 
                auto so = itr->get_sort_order();
@@ -1369,34 +1359,14 @@ namespace eos { namespace types {
             }
             os << "};" << std::endl;
 
-            return template_start_index;
+            return;
          }
       }
-
-      if( !tid.is_void() && !is_type_valid(tid) )
+      else if( !tid.is_void() && !is_type_valid(tid) )
          throw std::logic_error("Type is not valid.");
 
-      // Else print the non-struct type in typical field format:
-      vector<type_id::index_t> struct_indices;
-      map<type_id::index_t, uint32_t> struct_index_map;
-      print_type(os, tid, struct_indices, struct_index_map, template_start_index);
-
-      if( struct_indices.size() > 0 )
-      {
-         os << " /*[";
-         uint32_t counter = template_start_index;
-         for( auto index : struct_indices )
-         {
-            if( counter > template_start_index )
-               os << ", ";
-
-            os << "T" << counter << " = struct(" << index << ")";
-            ++counter;
-         }
-         os << "]*/";
-      }
-
-      return struct_indices.size() + template_start_index;
+      // Otherwise, print the non-struct type (includes tuples):
+      tm.traverse_type(tid, v);
    }
 
 } }

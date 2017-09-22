@@ -66,7 +66,7 @@ namespace eos { namespace types {
       range<typename vector<field_metadata>::const_iterator> get_all_members(type_id::index_t struct_index)const;
       range<typename vector<field_metadata>::const_iterator> get_sorted_members(type_id::index_t struct_index)const;
 
-      uint32_t print_type(std::ostream& os, const type_id&, uint32_t template_start_index = 1, bool inline_struct = false)const;
+      void print_type(std::ostream& os, type_id tid)const;
 
       friend struct print_type_visitor;
 
@@ -118,8 +118,6 @@ namespace eos { namespace types {
       type_id::index_t process_abi_type(const ABI& abi, map<uint32_t, uint32_t>& index_map, map<uint32_t, set<string>>& struct_map, uint32_t i);
 
       type_id::size_align get_size_align(type_id tid)const;
-
-      void print_type(std::ostream& os, const type_id& tid, vector<type_id::index_t>& struct_indices, map<type_id::index_t, uint32_t>& struct_index_map, uint32_t template_start_index)const;
 
 
       static inline uint8_t get_alignment_mask(uint8_t alignment) // Returns 0 if alignment is not a positive power of 2

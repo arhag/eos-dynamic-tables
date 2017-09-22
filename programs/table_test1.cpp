@@ -53,7 +53,7 @@ int main()
    auto print_type_info = [&](type_id tid)
    {
       auto index = tid.get_type_index();
-      cout << tc.get_struct_name(index) << ":" << endl;
+      cout << tc.get_struct_name(index) << " (index = " << index << "):" << endl;
       auto sa = tc.get_size_align_of_struct(index);
 
       tc.print_type(cout, tid);
