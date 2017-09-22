@@ -125,7 +125,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
       }
  
       template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
-      typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
+      typename std::enable_if<eos::types::reflector<Class>::is_tuple::value>::type
       operator()(Class& c)const
       {
          auto vis = make_visitor_for_product_type_member(static_cast<uint32_t>(Index));

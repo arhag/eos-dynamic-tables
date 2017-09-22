@@ -17,6 +17,7 @@ namespace eos { namespace types {
       enum type_specification : uint8_t
       {
          struct_type,
+         tuple_type,
          array_type,
          vector_type,
          optional_type,
@@ -54,7 +55,7 @@ namespace eos { namespace types {
 
       vector<type_definition> types;
       vector<struct_t>        structs;
-      vector<type_id>         variant_cases;
+      vector<type_id>         type_sequences;
       vector<table>           tables;
    };
 

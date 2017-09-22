@@ -35,6 +35,7 @@ namespace eos { namespace types {
       inline type_id::index_t forward_declare(const char* declared_name) { return forward_declare(string(declared_name)); }
       type_id::index_t forward_declare(const string& declared_name);
       type_id::index_t add_struct(const string& name, const vector<pair<type_id, int16_t>>& fields, type_id base = type_id(), int16_t base_sort = 0 );
+      type_id::index_t add_tuple(const vector<type_id>& fields);
       type_id::index_t add_array(type_id element_type, uint32_t num_elements);
       type_id::index_t add_vector(type_id element_type);
       type_id::index_t add_optional(type_id element_type);
@@ -51,7 +52,6 @@ namespace eos { namespace types {
       {
          return get_struct_index(eos::types::reflector<T>::name());
       }
-
 
       bool             is_type_valid(type_id tid)const;
       inline bool      is_disabled()const { return disabled; }
@@ -85,6 +85,7 @@ namespace eos { namespace types {
       type_id::index_t                  active_struct_index = type_id::type_index_limit;
 
       map<string,    type_id::index_t>                struct_lookup;
+      map<vector<type_id>, type_id::index_t>          tuple_lookup;
       map<pair<type_id, uint32_t>, type_id::index_t>  array_lookup;
       map<type_id,   type_id::index_t>                vector_lookup;
       map<type_id,   type_id::index_t>                optional_lookup;
@@ -92,6 +93,7 @@ namespace eos { namespace types {
       map<type_id::index_t, type_id::index_t>         table_lookup;
 
       map<type_id::index_t, string>     valid_struct_start_indices;
+      set<type_id::index_t>             valid_tuple_start_indices;
       set<type_id::index_t>             valid_array_start_indices;
       set<type_id::index_t>             valid_vector_start_indices;
       set<type_id::index_t>             valid_sum_type_start_indices;
@@ -105,6 +107,7 @@ namespace eos { namespace types {
       vector<struct_view_entry>         struct_views;
 
       void check_disabled()const;
+      void check_struct_index(type_id::index_t struct_index)const;
       void name_conflict_check(const string& name, bool skip_structs = false)const;
       pair<type_id::size_align, uint16_t> process_struct(const vector<pair<type_id, int16_t>>& fields, type_id base, int16_t base_sort);
 

@@ -137,6 +137,26 @@ namespace eos { namespace types {
 
             return add_struct(s.name, fields, base, base_sort);
          }
+         case ABI::tuple_type:
+         {
+            uint32_t num_fields = static_cast<uint32_t>(t.second);
+            if( (t.first + num_fields) >  abi.type_sequences.size() )
+               throw std::out_of_range("Invalid tuple specification.");
+
+            vector<type_id> fields;
+            fields.reserve(num_fields);
+            auto itr = abi.type_sequences.begin() + t.first;
+            for( uint32_t j = 0; j < num_fields; ++j, ++itr )
+            {
+               auto t = remap_abi_type(abi, index_map, struct_map, *itr);
+               fields.push_back(t);                 
+            }
+         
+            auto index = add_tuple(fields);
+            struct_map.emplace(i, set<string>());
+            index_map.emplace(i, index);
+            return index;
+         }
          case ABI::array_type:
          {
             auto index = add_array(remap_abi_type(abi, index_map, struct_map, type_id(t.first)), t.second); 
@@ -160,12 +180,12 @@ namespace eos { namespace types {
             uint32_t num_cases = static_cast<uint32_t>(t.second);
             if( num_cases >= type_id::variant_case_limit )
                throw std::invalid_argument("Variant has too many cases.");
-            if( (t.first + num_cases) >  abi.variant_cases.size() )
+            if( (t.first + num_cases) >  abi.type_sequences.size() )
                throw std::out_of_range("Invalid variant specification.");
 
             vector<type_id> cases;
             cases.reserve(num_cases);
-            auto itr = abi.variant_cases.begin() + t.first;
+            auto itr = abi.type_sequences.begin() + t.first;
             for( uint32_t j = 0; j < num_cases; ++j, ++itr )
             {
                auto t = remap_abi_type(abi, index_map, struct_map, *itr);
@@ -258,11 +278,11 @@ namespace eos { namespace types {
                continue;
 
             if( tc != type_id::struct_type )
-               throw std::invalid_argument("Table index keys can only be either builtin types or structs.");
+               throw std::invalid_argument("Table index keys can only be either builtin types or product types (structs or tuples).");
 
             auto key_index = indx.key_type.get_type_index();
-            if( struct_map.find(key_index) == struct_map.end() )
-               throw std::invalid_argument("Table index key refers either to an invalid index or to an index of a non-struct type.");
+            if( struct_map.find(key_index) == struct_map.end()  )
+               throw std::invalid_argument("Table index key refers either to an invalid index or to an index of type that is neither a struct or a tuple.");
 
             indices.back().key_type = remap_abi_type(abi, index_map, struct_map, type_id::make_struct(key_index));
          }
@@ -638,9 +658,74 @@ namespace eos { namespace types {
       return {type_id::size_align(size, align), fobso_map.size()};
    }
 
+   type_id::index_t types_constructor::add_tuple(const vector<type_id>& field_types)
+   {
+      check_disabled();
+
+      if( field_types.size() < 2 )
+         throw std::invalid_argument("There must be at least 2 fields within the tuple.");
+      
+      if( field_types.size() >= type_id::struct_fields_limit )
+         throw std::invalid_argument("There are too many fields within the tuple.");
+
+      auto itr = tuple_lookup.find(field_types);
+      if( itr != tuple_lookup.end() )
+         return itr->second;
+
+      if( tm.types.size() >= type_id::type_index_limit)
+         throw std::logic_error("Not enough room to add a tuple with valid index.");
+
+      if( (tm.members.size() + 2 * field_types.size()) > std::numeric_limits<uint32_t>::max() )
+         throw std::logic_error("Fields vector would become too large.");
+
+      vector<pair<type_id, int16_t>> fields;
+      fields.reserve(field_types.size());
+      int16_t counter = 1;
+      for( auto t : field_types )
+      {
+         if( !is_type_valid(t) )
+            throw std::invalid_argument("Invalid type within tuple that was to be added.");
+         fields.emplace_back(t, counter);
+         ++counter;
+      }
+
+      type_id::index_t index = tm.add_empty_struct_to_end();
+      
+      active_struct_index = index;
+      uint32_t original_members_size = tm.members.size();
+      try 
+      {  
+         type_id::size_align sa;
+         uint16_t num_sorted_members = 0;
+         std::tie(sa, num_sorted_members) = process_struct(fields, type_id(), 0); // Actually adds field_metadata to end of members
+         // If anything (meaning the process_struct function) throws an exception up to this point from the start of the try block,
+         // then this function will be able to recover the state prior to being called.
+
+         tm.complete_struct(index, sa, 
+                            original_members_size, fields.size(), num_sorted_members,
+                            type_id(), field_metadata::unsorted);
+      } 
+      catch( ... ) 
+      {
+         active_struct_index = type_id::type_index_limit;
+         tm.types.resize(index);
+         tm.members.resize(original_members_size);
+         throw;
+      }
+      active_struct_index = type_id::type_index_limit;
+
+      tuple_lookup.emplace(field_types, index);
+      valid_tuple_start_indices.insert(index);
+      ++num_types_with_cacheable_size_align;
+      ++num_types_with_cached_size_align;
+      return index;
+   }
+
+
    type_id::index_t types_constructor::add_array(type_id element_type, uint32_t num_elements)
    {
       check_disabled();
+
       if( num_elements < 2 )
          throw std::domain_error("Number of elements must be at least 2.");
 
@@ -904,7 +989,12 @@ namespace eos { namespace types {
 
       auto itr = valid_struct_start_indices.find(index);
       if( itr == valid_struct_start_indices.end() )
-         throw std::invalid_argument("Not a valid struct index.");
+      {
+         if( valid_tuple_start_indices.find(index) == valid_tuple_start_indices.end() )
+            throw std::invalid_argument("Not a valid struct index.");
+         else
+            throw std::invalid_argument("Struct index points to a tuple and so it does not have a name.");
+      }
 
       return itr->second;
    }
@@ -954,7 +1044,9 @@ namespace eos { namespace types {
          case type_id::struct_type:
             if( index == active_struct_index )
                return true;
-            return (valid_struct_start_indices.find(index) != valid_struct_start_indices.end());
+            else if( valid_struct_start_indices.find(index) != valid_struct_start_indices.end() )
+               return true;
+            return (valid_tuple_start_indices.find(index) != valid_tuple_start_indices.end());
          case type_id::array_type:
             return (valid_array_start_indices.find(index) != valid_array_start_indices.end());
          case type_id::vector_type:
@@ -991,8 +1083,10 @@ namespace eos { namespace types {
       if( num_types_with_cacheable_size_align == num_types_with_cached_size_align )
          return;
 
-      for( const auto& p : valid_struct_start_indices) // Caching size_align of structs must come first.
+      for( const auto& p : valid_struct_start_indices ) // Caching size_align of structs and tuples must come first.
          get_size_align(type_id::make_struct(p.first));
+      for( auto index : valid_tuple_start_indices )
+         get_size_align(type_id::make_struct(index));
 
       for( auto index : valid_array_start_indices)
          get_size_align(type_id::make_array(index));
@@ -1045,13 +1139,18 @@ namespace eos { namespace types {
       return tm.get_size_align(tid, &num_types_with_cached_size_align);
    }
 
+   void types_constructor::check_struct_index(type_id::index_t struct_index)const
+   {
+      if( (valid_struct_start_indices.find(struct_index) == valid_struct_start_indices.end()) 
+          && (valid_tuple_start_indices.find(struct_index) == valid_tuple_start_indices.end()) )
+         throw std::invalid_argument("Struct does not exist.");
+   }
+
    type_id::size_align 
    types_constructor::get_size_align_of_struct(type_id::index_t struct_index)const
    {
       check_disabled();
-
-      if( valid_struct_start_indices.find(struct_index) == valid_struct_start_indices.end() )
-         throw std::invalid_argument("Struct does not exist.");
+      check_struct_index(struct_index);
 
       return get_size_align(type_id::make_struct(struct_index));
    }
@@ -1060,10 +1159,7 @@ namespace eos { namespace types {
    types_constructor::get_all_members(type_id::index_t struct_index)const
    {
       check_disabled();
-
-      auto itr = valid_struct_start_indices.find(struct_index);
-      if( itr == valid_struct_start_indices.end() )
-         throw std::invalid_argument("Struct does not exist.");
+      check_struct_index(struct_index);
 
       return tm.get_all_members(struct_index);
    }
@@ -1072,10 +1168,7 @@ namespace eos { namespace types {
    types_constructor::get_sorted_members(type_id::index_t struct_index)const
    {
       check_disabled();
-
-      auto itr = valid_struct_start_indices.find(struct_index);
-      if( itr == valid_struct_start_indices.end() )
-         throw std::invalid_argument("Struct does not exist.");
+      check_struct_index(struct_index);
 
       return tm.get_sorted_members(struct_index);
    }
@@ -1113,11 +1206,33 @@ namespace eos { namespace types {
 
       traversal_shortcut operator()(struct_type t)
       {
+         if( tc.valid_tuple_start_indices.find(t.index) != tc.valid_tuple_start_indices.end() )
+         {
+            auto r = tc.tm.get_all_members(t.index);
+            if( r.end() - r.begin() == 2 )
+               os << "Pair<";
+            else
+               os << "Tuple<";
+
+            bool first = true;
+            for( auto itr = r.begin(); itr != r.end(); ++itr )
+            {
+               if( first )
+                  first = false;
+               else
+                  os << ", ";
+               tc.tm.traverse_type(itr->get_type_id(), *this);
+            }
+
+            os << ">";
+            return types_manager::no_deeper;
+         }
+
          auto res = struct_index_map.emplace(t.index, struct_indices.size());
          if( res.second )
             struct_indices.push_back(t.index);
          os << "T" << (res.first->second + template_start_index);
-         return types_manager::no_shortcut;
+         return types_manager::no_deeper;
       }
       
       traversal_shortcut operator()(variant_type t) 
@@ -1204,53 +1319,61 @@ namespace eos { namespace types {
          static const char* ascending  = "ascending";
          static const char* descending = "descending";
 
-         auto itr = valid_struct_start_indices.find(tid.get_type_index());
+         auto struct_index = tid.get_type_index();
+         auto itr = valid_struct_start_indices.find(struct_index);
          if( itr == valid_struct_start_indices.end() )
-            throw std::invalid_argument("Struct does not exist.");
-
-         auto res = tm.get_base_info(itr->first);
-         bool base_exists = (res.first != type_id::type_index_limit);
-         auto base_itr = valid_struct_start_indices.end();
-         if( base_exists )
          {
-            base_itr = valid_struct_start_indices.find(res.first);
-            if( base_itr == valid_struct_start_indices.end() )
-               throw std::runtime_error("Invariant failure: Base of valid struct does not exist.");
+            if( valid_tuple_start_indices.find(struct_index) == valid_tuple_start_indices.end() )
+               throw std::invalid_argument("Struct or tuple does not exist.");
+
+            // Otherwise it is a tuple and so it needs to be handled by the same code that handles non-struct types.
          }
-
-         os << "struct ";
-         os <<  itr->second << " /* struct(" << itr->first << ") */";
-         if( base_exists )
+         else
          {
-            os << " : ";
-            os << base_itr->second << " /* struct(" << base_itr->first << ") */";
-            if( res.second != field_metadata::unsorted )
+            auto res = tm.get_base_info(itr->first);
+            bool base_exists = (res.first != type_id::type_index_limit);
+            auto base_itr = valid_struct_start_indices.end();
+            if( base_exists )
             {
-               os << " // Base sorted in " << ((res.second == field_metadata::ascending) ? ascending : descending);
-               os << " order";
+               base_itr = valid_struct_start_indices.find(res.first);
+               if( base_itr == valid_struct_start_indices.end() )
+                  throw std::runtime_error("Invariant failure: Base of valid struct does not exist.");
             }
+
+            os << "struct ";
+            os <<  itr->second << " /* struct(" << itr->first << ") */";
+            if( base_exists )
+            {
+               os << " : ";
+               os << base_itr->second << " /* struct(" << base_itr->first << ") */";
+               if( res.second != field_metadata::unsorted )
+               {
+                  os << " // Base sorted in " << ((res.second == field_metadata::ascending) ? ascending : descending);
+                  os << " order";
+               }
+            }
+            os << std::endl << "{" << std::endl;
+
+            auto r = tm.get_all_members(itr->first);
+            uint32_t field_seq_num = 0;
+            for( auto itr = r.begin() + (base_exists ? 1 : 0); itr != r.end(); ++field_seq_num, ++itr)
+            {
+               os << tab;
+               template_start_index = print_type(os, itr->get_type_id(), template_start_index, true);
+               os << " f" << field_seq_num << ";";
+
+               auto so = itr->get_sort_order();
+               if( so != field_metadata::unsorted )
+                  os << " // Sorted in " << (so == field_metadata::ascending ? ascending : descending) << " order";
+               os << std::endl;
+            }
+            os << "};" << std::endl;
+
+            return template_start_index;
          }
-         os << std::endl << "{" << std::endl;
-
-         auto r = tm.get_all_members(itr->first);
-         uint32_t field_seq_num = 0;
-         for( auto itr = r.begin() + (base_exists ? 1 : 0); itr != r.end(); ++field_seq_num, ++itr)
-         {
-            os << tab;
-            template_start_index = print_type(os, itr->get_type_id(), template_start_index, true);
-            os << " f" << field_seq_num << ";";
-
-            auto so = itr->get_sort_order();
-            if( so != field_metadata::unsorted )
-               os << " // Sorted in " << (so == field_metadata::ascending ? ascending : descending) << " order";
-            os << std::endl;
-         }
-         os << "};" << std::endl;
-
-         return template_start_index;
       }
 
-      if( !is_type_valid(tid) )
+      if( !tid.is_void() && !is_type_valid(tid) )
          throw std::logic_error("Type is not valid.");
 
       // Else print the non-struct type in typical field format:

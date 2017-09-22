@@ -126,28 +126,10 @@ namespace eos { namespace types {                                               
    template <>                                                                                               \
    struct reflector<T>                                                                                       \
    {                                                                                                         \
-      using is_defined = std::true_type;                                                                     \
-      using is_struct  = std::true_type;                                                                     \
-      using type       = T;                                                                                  
-
-#define EOS_TYPES_REFLECT_STRUCT_END_HELPER(NAME)                                                            \
-      static inline uint32_t register_struct(eos::types::abi_constructor& ac, const std::vector<type_id>& ft)\
-      {                                                                                                      \
-         const char* * field_names = nullptr;                                                                \
-         const char* * sorted_member_names = nullptr;                                                        \
-         bool        * sorted_member_dir = nullptr;                                                          \
-         get_member_info(&field_names, &sorted_member_names, &sorted_member_dir);                            \
-         return eos::types::register_struct(ac, ft, NAME,                                                    \
-                                            field_names, static_cast<uint32_t>(field_count),                 \
-                                            sorted_member_names, sorted_member_dir,                          \
-                                            static_cast<uint32_t>(sorted_member_count));                     \
-      }                                                                                                      \
-      static inline const char* name()                                                                       \
-      {                                                                                                      \
-         return NAME;                                                                                        \
-      }                                                                                                      \
-  };                                                                                                         \
-} }                                                                                                          
+      using is_defined       = std::true_type;                                                               \
+      using is_product_type  = std::true_type;                                                               \
+      using is_struct        = std::true_type;                                                               \
+      using type             = T;                                                                                  
 
 #define EOS_TYPES_REFLECT_STRUCT_END(T, fields)                                                              \
       template<typename Visitor>                                                                             \
@@ -167,7 +149,23 @@ namespace eos { namespace types {                                               
       {                                                                                                      \
          BOOST_PP_SEQ_FOR_EACH_I(EOS_TYPES_REFLECT_VISIT_MEMBER, 0, fields)                                  \
       }                                                                                                      \
-      EOS_TYPES_REFLECT_STRUCT_END_HELPER(BOOST_PP_STRINGIZE(T))
+      static inline uint32_t register_struct(eos::types::abi_constructor& ac, const std::vector<type_id>& ft)\
+      {                                                                                                      \
+         const char* * field_names = nullptr;                                                                \
+         const char* * sorted_member_names = nullptr;                                                        \
+         bool        * sorted_member_dir = nullptr;                                                          \
+         get_member_info(&field_names, &sorted_member_names, &sorted_member_dir);                            \
+         return eos::types::register_struct(ac, ft, BOOST_PP_STRINGIZE(T),                                   \
+                                            field_names, static_cast<uint32_t>(field_count),                 \
+                                            sorted_member_names, sorted_member_dir,                          \
+                                            static_cast<uint32_t>(sorted_member_count));                     \
+      }                                                                                                      \
+      static inline const char* name()                                                                       \
+      {                                                                                                      \
+         return BOOST_PP_STRINGIZE(T);                                                                       \
+      }                                                                                                      \
+  };                                                                                                         \
+} }                                                                                                          
 
 #define EOS_TYPES_REFLECT_STRUCT_1  
 
@@ -196,9 +194,10 @@ namespace eos { namespace types {                                               
    template <>                                                                                               \
    struct reflector<T>                                                                                       \
    {                                                                                                         \
-      using is_defined = std::true_type;                                                                     \
-      using is_struct  = std::true_type;                                                                     \
-      using type       = T;                                                                                  
+      using is_defined      = std::true_type;                                                                \
+      using is_product_type = std::true_type;                                                                \
+      using is_struct       = std::true_type;                                                                \
+      using type            = T;                                                                                  
 
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                                                   \
       template<typename Visitor>                                                                             \
@@ -268,10 +267,6 @@ EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                              
    BOOST_PP_CAT(BOOST_PP_OVERLOAD(EOS_TYPES_REFLECT_STRUCT_DERIVED_,__VA_ARGS__)(__VA_ARGS__),BOOST_PP_EMPTY())
 #endif
 
-//#define EOS_TYPES_REFLECT_GET_TYPENAME(T) BOOST_PP_STRINGIZE(T)
-
-#define EOS_TYPES_REFLECT_GET_TYPENAME(T) typeid(T).name()
-
 #define EOS_TYPES_REFLECT_TEMPLATE_ARG(r, index, data) , data T##index
 
 #define EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT( r, index, data )                                              \
@@ -280,23 +275,28 @@ EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                              
 #define EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT_TYPE( r, index, data )                                         \
          _v.TEMPLATE operator()<data##index, type, index>();
 
-#define EOS_TYPES_REFLECT_PRODUCT_TYPE_HELPER(C, num_template_args, NAME, fields, member_sort)               \
+#define EOS_TYPES_REFLECT_TUPLE(C, num_template_args)                                                        \
 namespace eos { namespace types {                                                                            \
    template<typename T0                                                                                      \
             BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, typename)>         \
    struct reflector<C<T0                                                                                     \
                       BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, )>>      \
    {                                                                                                         \
-      using is_defined = std::true_type;                                                                     \
-      using is_struct  = std::true_type;                                                                     \
-      using type       = C<T0                                                                                \
-                           BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, )>; \
-EOS_TYPES_REFLECT_MEMBER_COUNT(fields, member_sort)                                                          \
-EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                                                       \
+      using is_defined      = std::true_type;                                                                \
+      using is_product_type = std::true_type;                                                                \
+      using is_struct       = std::false_type;                                                               \
+      using is_tuple        = std::true_type;                                                                \
+      using type            = C<T0 BOOST_PP_REPEAT_FROM_TO(1, num_template_args,                             \
+                                                           EOS_TYPES_REFLECT_TEMPLATE_ARG, )>;               \
+      enum  field_count_enum {                                                                               \
+         field_count = num_template_args                                                                     \
+      };                                                                                                     \
+      enum sorted_member_count_enum {                                                                        \
+         sorted_member_count = num_template_args                                                             \
+      };                                                                                                     \
       template<typename Visitor>                                                                             \
       static void visit(Visitor& _v)                                                                         \
       {                                                                                                      \
-         if( !_v.TEMPLATE operator()<type>( NAME ) ) { return; }                                             \
          BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT_TYPE, T)                   \
          _v.TEMPLATE operator()<type>();                                                                     \
       }                                                                                                      \
@@ -310,32 +310,8 @@ EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                          
       {                                                                                                      \
          BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT, T)                        \
       }                                                                                                      \
-EOS_TYPES_REFLECT_STRUCT_END_HELPER(NAME)                         
-
-#define EOS_TYPES_REFLECT_ANONYMOUS_FIELD(r, index, data) (data##index)
-
-#define EOS_TYPES_REFLECT_ANONYMOUS_FIELD_ASCENDING(r, index, data) ((data##index, asc))
-
-#if 0
-
-#define EOS_TYPES_STRINGIZE_ALL_HELPER(...) #__VA_ARGS__
-
-#define EOS_TYPES_STRINGIZE_ALL(...) EOS_TYPES_STRINGIZE_ALL_HELPER(__VA_ARGS__)
-
-#define EOS_TYPES_REFLECT_PRODUCT_TYPE(C, Ts)                                                                \
-EOS_TYPES_REFLECT_PRODUCT_TYPE_HELPER(C, BOOST_PP_SEQ_SIZE(Ts),                                              \
-      EOS_TYPES_STRINGIZE_ALL(C<BOOST_PP_SEQ_ENUM(Ts)>),                                                     \
-      BOOST_PP_REPEAT(BOOST_PP_SEQ_SIZE(Ts), EOS_TYPES_REFLECT_ANONYMOUS_FIELD, f),                          \
-      BOOST_PP_REPEAT(BOOST_PP_SEQ_SIZE(Ts), EOS_TYPES_REFLECT_ANONYMOUS_FIELD_ASCENDING, f) )
-
-#endif
-
-#define EOS_TYPES_REFLECT_TUPLE(C, num_template_args)                                                        \
-EOS_TYPES_REFLECT_PRODUCT_TYPE_HELPER(C, num_template_args,                                                  \
-      EOS_TYPES_REFLECT_GET_TYPENAME(type),                                                                  \
-      BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_ANONYMOUS_FIELD, f),                              \
-      BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_ANONYMOUS_FIELD_ASCENDING, f) )
-
+   };                                                                                                        \
+} }
 
 #define EOS_TYPES_REFLECT_SIMPLE_VISIT                         \
       template<typename Visitor>                               \
@@ -359,10 +335,10 @@ namespace eos { namespace types {                              \
    template <>                                                 \
    struct reflector<T>                                         \
    {                                                           \
-      using is_defined = std::true_type;                       \
-      using is_struct  = std::false_type;                      \
-      using is_builtin = std::true_type;                       \
-      using type = T;                                          \
+      using is_defined      = std::true_type;                  \
+      using is_struct       = std::false_type;                 \
+      using is_builtin      = std::true_type;                  \
+      using type            = T;                               \
       static const type_id::builtin builtin_type = type_id::B; \
       EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
    };                                                          \
@@ -373,10 +349,10 @@ namespace eos { namespace types {                              \
    template<typename T, size_t N>                              \
    struct reflector<C<T, N>>                                   \
    {                                                           \
-      using is_defined = std::true_type;                       \
-      using is_struct  = std::false_type;                      \
-      using is_array   = std::true_type;                       \
-      using type = C<T, N>;                                    \
+      using is_defined       = std::true_type;                 \
+      using is_struct        = std::false_type;                \
+      using is_array         = std::true_type;                 \
+      using type             = C<T, N>;                        \
       enum  num_elements_enum {                                \
          num_elements = N                                      \
       };                                                       \
@@ -389,10 +365,10 @@ namespace eos { namespace types {                              \
    template<typename T>                                        \
    struct reflector<C<T>>                                      \
    {                                                           \
-      using is_defined = std::true_type;                       \
-      using is_struct  = std::false_type;                      \
-      using is_vector  = std::true_type;                       \
-      using type = C<T>;                                       \
+      using is_defined       = std::true_type;                 \
+      using is_struct        = std::false_type;                \
+      using is_vector        = std::true_type;                 \
+      using type             = C<T>;                           \
       EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
    };                                                          \
 } }
@@ -402,10 +378,10 @@ namespace eos { namespace types {                              \
    template<typename T>                                        \
    struct reflector<C<T>>                                      \
    {                                                           \
-      using is_defined  = std::true_type;                      \
-      using is_struct   = std::false_type;                     \
-      using is_optional = std::true_type;                      \
-      using type = C<T>;                                       \
+      using is_defined      = std::true_type;                  \
+      using is_struct       = std::false_type;                 \
+      using is_optional     = std::true_type;                  \
+      using type            = C<T>;                            \
       EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
    };                                                          \
 } }
@@ -578,20 +554,10 @@ namespace eos { namespace types {
       }
 
       template<class Class>
-      typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
-      operator()(bool unique, bool ascending, const vector<uint16_t>& mapping) // Table index of struct key type
+      typename std::enable_if<eos::types::reflector<Class>::is_product_type::value>::type
+      operator()(bool unique, bool ascending, const vector<uint16_t>& mapping) // Table index of struct or tuple/pair key type
       {
-         auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name());
-         if( cur_struct_index >= 0 )
-         {
-            tid = type_id::make_struct(static_cast<uint32_t>(cur_struct_index));
-         }
-         else
-         {
-            type_discovery_visitor vis(ac);
-            eos::types::reflector<Class>::visit(vis);
-            tid = vis.tid;
-         }
+         eos::types::reflector<Class>::visit(*this); // Should modify tid to be the type_id of Class
          indices.push_back(ABI::table_index{ .key_type = tid, .unique = unique, .ascending = ascending, .mapping =  mapping });
       }
 
@@ -611,7 +577,7 @@ namespace eos { namespace types {
 
       template<class Class>
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value, bool>::type
-      operator()(const char* name) // Called before processing the fields of a product type such as a struct or its base or a tuple/pair.
+      operator()(const char* name) // Called before processing the fields of a struct or its base.
       {
          auto cur_struct_index = ac.get_struct_index(eos::types::reflector<Class>::name());
          if( cur_struct_index >= 0 )
@@ -625,7 +591,7 @@ namespace eos { namespace types {
 
       template<class Class, class Base>
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Base>::is_struct::value>::type
-      operator()()const
+      operator()()const // Called when processing the base of a struct.
       {
          if( ac.get_struct_index(eos::types::reflector<Base>::name()) >= 0 )
             return;
@@ -636,9 +602,17 @@ namespace eos { namespace types {
 
       template<class Class>
       typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
-      operator()() // Called after processing the fields of the product type
+      operator()() // Called after processing the fields of a struct 
       {
          tid = type_id::make_struct(eos::types::reflector<Class>::register_struct(ac, field_types));
+         field_types.clear();
+      }
+
+      template<class Class>
+      typename std::enable_if<eos::types::reflector<Class>::is_tuple::value>::type
+      operator()() // Called after processing the fields of a tuple/pair
+      {
+         tid = type_id::make_struct(ac.add_tuple(field_types));
          field_types.clear();
       }
 
@@ -669,7 +643,7 @@ namespace eos { namespace types {
       }
 
       template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
-      typename std::enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Member>::is_struct::value>::type
+      typename std::enable_if<eos::types::reflector<Class>::is_tuple::value && eos::types::reflector<Member>::is_struct::value>::type
       operator()()
       {
          auto index = ac.get_struct_index(eos::types::reflector<Member>::name());
@@ -686,7 +660,7 @@ namespace eos { namespace types {
       }
 
       template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
-      typename std::enable_if<eos::types::reflector<Class>::is_struct::value && !eos::types::reflector<Member>::is_struct::value>::type
+      typename std::enable_if<eos::types::reflector<Class>::is_tuple::value && !eos::types::reflector<Member>::is_struct::value>::type
       operator()()
       {
          type_discovery_visitor vis(ac);

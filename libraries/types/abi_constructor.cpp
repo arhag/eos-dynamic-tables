@@ -58,6 +58,28 @@ namespace eos { namespace types {
       return static_cast<int32_t>(itr->second);
    }
 
+   type_id::index_t abi_constructor::add_tuple(const vector<type_id>& fields)
+   {
+      if( fields.size() < 2 )
+         throw std::invalid_argument("There must be at least 2 fields within the tuple.");
+
+      auto itr = tuple_lookup.find(fields);
+      if( itr != tuple_lookup.end() )
+         return itr->second;
+
+      if( abi.type_sequences.size() >= type_id::type_index_limit )
+         throw std::logic_error("Too many variants or tuples defined.");
+
+      type_id::index_t index = abi.types.size();
+      abi.types.push_back({ .first = static_cast<uint32_t>(abi.type_sequences.size()), .second = static_cast<int32_t>(fields.size()), .ts = ABI::tuple_type });
+      for( auto t : fields )
+         abi.type_sequences.push_back(t);
+      
+      tuple_lookup.emplace(fields, index);
+      return index;
+
+   }
+
    type_id::index_t abi_constructor::add_array(type_id element_type, uint32_t num_elements)
    {
       if( num_elements < 2 )
@@ -74,7 +96,6 @@ namespace eos { namespace types {
       abi.types.push_back({ .first = element_type.get_storage(), .second = static_cast<int32_t>(num_elements), .ts = ABI::array_type });
 
       array_lookup.emplace(std::make_pair(element_type, num_elements), index);
-      valid_array_start_indices.insert(index);
       return index;
    }
 
@@ -88,7 +109,6 @@ namespace eos { namespace types {
       abi.types.push_back({ .first = element_type.get_storage(), .second = -1, .ts = ABI::vector_type });
 
       vector_lookup.emplace(element_type, index);
-      valid_vector_start_indices.insert(index);
       return index; 
    }
 
@@ -102,7 +122,6 @@ namespace eos { namespace types {
       abi.types.push_back({ .first = element_type.get_storage(), .second = -1, .ts = ABI::optional_type });
 
       optional_lookup.emplace(element_type, index);
-      valid_sum_type_start_indices.insert(index);
       return index; 
   }
 
@@ -118,16 +137,15 @@ namespace eos { namespace types {
       if( itr != variant_lookup.end() )
          return itr->second;
 
-      if( abi.variant_cases.size() >= type_id::type_index_limit )
-         throw std::logic_error("Too many variants defined.");
+      if( abi.type_sequences.size() >= type_id::type_index_limit )
+         throw std::logic_error("Too many variants or tuples defined.");
 
       type_id::index_t index = abi.types.size();
-      abi.types.push_back({ .first = static_cast<uint32_t>(abi.variant_cases.size()), .second = static_cast<int32_t>(cases.size()), .ts = ABI::optional_type });
+      abi.types.push_back({ .first = static_cast<uint32_t>(abi.type_sequences.size()), .second = static_cast<int32_t>(cases.size()), .ts = ABI::variant_type });
       for( auto t : cases )
-         abi.variant_cases.push_back(t);
+         abi.type_sequences.push_back(t);
       
       variant_lookup.emplace(cases, index);
-      valid_sum_type_start_indices.insert(index);
       return index;
    }
 
