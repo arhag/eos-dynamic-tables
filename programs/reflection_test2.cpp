@@ -191,37 +191,37 @@ int main()
    auto ac = types_initializer<reflection_test2_types>::init();
   
    types_constructor tc(ac.get_abi());
+   auto types_managers = tc.destructively_extract_types_managers();
+   const auto& tm  = types_managers.first;
+   const auto& ftm = types_managers.second;
+   serialization_region r(ftm);
 
    auto print_type_info = [&](type_id tid)
    {
       auto index = tid.get_type_index();
-      cout << tc.get_struct_name(index) << " (index = " << index << "):" << endl;
-      auto sa = tc.get_size_align_of_struct(index);
+      cout << ftm.get_struct_name(index) << " (index = " << index << "):" << endl;
+      auto sa = ftm.get_size_align(tid);
 
-      tc.print_type(cout, tid);
+      ftm.print_type(cout, tid);
       cout << "Size: " << sa.get_size() << endl;
       cout << "Alignment: " << (int) sa.get_align() << endl;
 
       cout << "Sorted members (in sort priority order):" << endl;
-      for( auto f : tc.get_sorted_members(index) )
+      for( auto f : ftm.get_sorted_members(index) )
          cout << f << endl;
    };
 
-   auto order_id_tid = type_id::make_struct(tc.get_struct_index<order_id>());
+   auto order_id_tid = type_id::make_struct(ftm.get_struct_index<order_id>());
    print_type_info(order_id_tid);
    cout << endl;
 
-   auto bid_tid = type_id::make_struct(tc.get_struct_index<bid>());
+   auto bid_tid = type_id::make_struct(ftm.get_struct_index<bid>());
    print_type_info(bid_tid);
    cout << endl;
 
-   auto ask_tid = type_id::make_struct(tc.get_struct_index<ask>());
+   auto ask_tid = type_id::make_struct(ftm.get_struct_index<ask>());
    print_type_info(ask_tid);
    cout << endl;
-
-   //auto tm = tc.destructively_extract_types_manager();
-   auto tm = tc.copy_types_manager();
-   serialization_region r(tm);
 
    auto tbl_indx1 = tm.get_table_index(tm.get_table("bid"), 0);
    auto tbl_indx2 = tm.get_table_index(tm.get_table("bid"), 1);
@@ -308,7 +308,7 @@ int main()
       if( key_type.get_type_class() == type_id::builtin_type )
          key_type_name = type_id::get_builtin_type_name(key_type.get_builtin_type());
       else
-         key_type_name = tc.get_struct_name(key_type.get_type_index());
+         key_type_name = ftm.get_struct_name(key_type.get_type_index());
 
       cout << "Index " << (i+1)  << " of the 'bid' table is " << (ti.is_unique() ? "unique" : "non-unique")
            << " and sorted according to the key type '" << key_type_name

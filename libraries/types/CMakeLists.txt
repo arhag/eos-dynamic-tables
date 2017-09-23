@@ -8,7 +8,9 @@ add_library( eos_types
              raw_region.cpp 
              type_id.cpp 
              field_metadata.cpp 
+             types_manager_common.cpp
              types_manager.cpp 
+             full_types_manager.cpp
              abi_constructor.cpp 
              types_constructor.cpp 
              ${HEADERS} 

@@ -163,8 +163,8 @@ namespace eos { namespace types {
          return (_storage >= variant_case_limit);
       }
 
-      friend class field_metadata; // So that field_metadata can quickly be constructed from raw storage without unnecessary validation.
-      friend class types_manager;  // For the same reason.
+      friend class field_metadata;       // So that field_metadata can quickly be constructed from raw storage without unnecessary validation.
+      friend class types_manager_common; // For the same reason.
 
       friend inline bool operator<(type_id lhs, type_id rhs) { return lhs.get_storage() < rhs.get_storage(); }
       friend inline bool operator==(type_id lhs, type_id rhs) { return lhs.get_storage() == rhs.get_storage(); }

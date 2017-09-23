@@ -2,7 +2,7 @@
 
 #include <eos/types/reflect.hpp>
 #include <eos/types/raw_region.hpp>
-#include <eos/types/types_manager.hpp>
+#include <eos/types/full_types_manager.hpp>
 #include <eos/types/deserialize_visitor.hpp>
 
 #include <type_traits>
@@ -14,7 +14,7 @@ namespace eos { namespace types {
    {
    public:
 
-      serialization_region(const types_manager& tm, uint32_t initial_capacity = 0)
+      serialization_region(const full_types_manager& tm, uint32_t initial_capacity = 0)
          : tm(tm)
       {
          if( initial_capacity != 0)
@@ -23,12 +23,12 @@ namespace eos { namespace types {
 
       struct write_visitor
       {
-         const types_manager& tm;
+         const full_types_manager& tm;
          raw_region& r;
          type_id tid;
          uint32_t offset = 0;
 
-         write_visitor( const types_manager& tm, raw_region& r, type_id tid, uint32_t offset)
+         write_visitor(const full_types_manager& tm, raw_region& r, type_id tid, uint32_t offset)
             : tm(tm), r(r), tid(tid), offset(offset)
          {}
  
@@ -108,8 +108,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
             auto base_tid = tm.get_member(tid.get_type_index(), 0).get_type_id();
             write_visitor vis(tm, r, base_tid, offset); 
             eos::types::reflector<Base>::visit(b, vis);
-         }
- 
+         } 
 
          write_visitor make_visitor_for_product_type_member( uint32_t member_index )const
          { 
@@ -200,7 +199,6 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
             }
          }
 
-
          template<class Container>
          typename std::enable_if<eos::types::reflector<Container>::is_vector::value>::type
          operator()(const Container& c)const
@@ -268,7 +266,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
       friend class write_struct_visitor;
 
    private:
-      const types_manager& tm;
+      const full_types_manager& tm;
       raw_region           raw_data;
    };
 

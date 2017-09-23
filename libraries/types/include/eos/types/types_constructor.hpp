@@ -5,8 +5,8 @@
 #include <eos/types/abi.hpp>
 #include <eos/types/reflect.hpp>
 #include <eos/types/types_manager.hpp>
+#include <eos/types/full_types_manager.hpp>
 
-#include <iosfwd>
 #include <utility>
 #include <string>
 #include <vector>
@@ -42,33 +42,12 @@ namespace eos { namespace types {
       type_id::index_t add_variant(const vector<type_id>& cases);
       type_id::index_t add_table(type_id::index_t object_index, const vector<ABI::table_index>& indices);
 
-      string           get_struct_name(type_id::index_t index)const;
-      type_id::index_t get_struct_index(const string& name)const;
-
-      template<typename T>
-      inline
-      typename std::enable_if<eos::types::reflector<T>::is_struct::value, type_id::index_t>::type
-      get_struct_index()const
-      {
-         return get_struct_index(eos::types::reflector<T>::name());
-      }
-
       bool             is_type_valid(type_id tid)const;
       inline bool      is_disabled()const { return disabled; }
       bool             is_complete()const;
       
       void             complete_size_align_cache();
-      types_manager    copy_types_manager();
-      types_manager    destructively_extract_types_manager();
-
-      type_id::size_align get_size_align_of_struct(type_id::index_t struct_index)const;
-
-      range<typename vector<field_metadata>::const_iterator> get_all_members(type_id::index_t struct_index)const;
-      range<typename vector<field_metadata>::const_iterator> get_sorted_members(type_id::index_t struct_index)const;
-
-      void print_type(std::ostream& os, type_id tid)const;
-
-      friend struct print_type_visitor;
+      pair<types_manager, full_types_manager>  destructively_extract_types_managers();
 
    private:
       
@@ -79,7 +58,11 @@ namespace eos { namespace types {
          vector<uint16_t> mapping;
       };
 
-      types_manager                     tm;
+      vector<uint32_t>                  types_minimal;
+      vector<field_metadata>            members_minimal;
+      vector<uint32_t>                  types_full;
+      vector<field_metadata>            members_full;
+ 
       bool                              disabled = false;
 
       type_id::index_t                  active_struct_index = type_id::type_index_limit;
@@ -99,23 +82,30 @@ namespace eos { namespace types {
       set<type_id::index_t>             valid_sum_type_start_indices;
       set<type_id::index_t>             valid_table_start_indices;
 
+      flat_map<type_id::index_t, type_id> valid_indices;
+
       map<string, type_id::index_t>     incomplete_structs;
 
-      uint32_t                          num_types_with_cacheable_size_align  = 0;
-      mutable uint32_t                  num_types_with_cached_size_align    = 0;
+      uint32_t                          num_types_with_cacheable_size_align      = 0;
+      mutable uint32_t                  num_types_with_cached_size_align_minimal = 0;
+      mutable uint32_t                  num_types_with_cached_size_align_full    = 0;
 
       vector<struct_view_entry>         struct_views;
 
       void check_disabled()const;
-      void check_struct_index(type_id::index_t struct_index)const;
       void name_conflict_check(const string& name, bool skip_structs = false)const;
-      pair<type_id::size_align, uint16_t> process_struct(const vector<pair<type_id, int16_t>>& fields, type_id base, int16_t base_sort);
-
-      uint32_t add_struct_view(type_id::index_t object_index, type_id::builtin builtin_type, uint16_t object_member_index);
-      uint32_t add_struct_view(type_id::index_t object_index, type_id::index_t key_index, const vector<uint16_t>& mapping);
-
+ 
       type_id          remap_abi_type(const ABI& abi, map<uint32_t, uint32_t>& index_map, map<uint32_t, set<string>>& struct_map, type_id tid);
       type_id::index_t process_abi_type(const ABI& abi, map<uint32_t, uint32_t>& index_map, map<uint32_t, set<string>>& struct_map, uint32_t i);
+     
+      type_id::index_t add_empty_struct_to_end();
+      void             complete_struct(type_id::index_t index, const vector<pair<type_id, int16_t>>& fields,
+                                       type_id base = type_id(), int16_t base_sort = 0,
+                                       bool was_previously_declared = false);
+      pair<type_id::size_align, uint16_t> process_struct(const vector<pair<type_id, int16_t>>& fields, type_id base, int16_t base_sort);
+
+      pair<uint32_t, uint32_t> add_struct_view(type_id::index_t object_index, type_id::builtin builtin_type, uint16_t object_member_index);
+      pair<uint32_t, uint32_t> add_struct_view(type_id::index_t object_index, type_id::index_t key_index, const vector<uint16_t>& mapping);
 
       type_id::size_align get_size_align(type_id tid)const;
 

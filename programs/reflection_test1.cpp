@@ -68,25 +68,25 @@ int main()
 
    auto abi_ac = types_initializer<abi_reflection>::init();
    types_constructor abi_tc(abi_ac.get_abi());
-   auto abi_tid = type_id::make_struct(abi_tc.get_struct_index<ABI>());
+   auto abi_types_managers = abi_tc.destructively_extract_types_managers();
+   const auto& abi_tm = abi_types_managers.second;
+   auto abi_tid = type_id::make_struct(abi_tm.get_struct_index<ABI>());
+   serialization_region abi_serializer(abi_tm);
 
    vector<type_id::index_t> abi_structs = { abi_tid.get_type_index(),
-                                            abi_tc.get_struct_index<ABI::type_definition>(),
-                                            abi_tc.get_struct_index<ABI::struct_t>(),
-                                            abi_tc.get_struct_index<ABI::table_index>(),
-                                            abi_tc.get_struct_index<ABI::table>()
+                                            abi_tm.get_struct_index<ABI::type_definition>(),
+                                            abi_tm.get_struct_index<ABI::struct_t>(),
+                                            abi_tm.get_struct_index<ABI::table_index>(),
+                                            abi_tm.get_struct_index<ABI::table>()
                                           };
    for( auto indx : abi_structs )
    {
-      abi_tc.print_type(cout, type_id::make_struct(indx));
+      abi_tm.print_type(cout, type_id::make_struct(indx));
       cout << "Members:" << endl;
-      for( auto f : abi_tc.get_all_members(indx) )
+      for( auto f : abi_tm.get_all_members(indx) )
          cout << f << endl;
       cout << endl;
    }
-
-   auto abi_tm = abi_tc.destructively_extract_types_manager();
-   serialization_region abi_serializer(abi_tm);
 
    auto ac = types_initializer<reflection_test1_types>::init();
    abi_serializer.write_type(ac.get_abi(), abi_tid);
@@ -98,37 +98,37 @@ int main()
    abi_serializer.read_type(abi, abi_tid);
 
    types_constructor tc(abi);
+   auto types_managers = tc.destructively_extract_types_managers();
+   const auto& tm  = types_managers.first;
+   const auto& ftm = types_managers.second;
+   serialization_region r(ftm);
 
    auto print_type_info = [&](type_id tid)
    {
       auto index = tid.get_type_index();
-      cout << tc.get_struct_name(index) << " (index = " << index << "):" << endl;
-      auto sa = tc.get_size_align_of_struct(index);
+      cout << ftm.get_struct_name(index) << " (index = " << index << "):" << endl;
+      auto sa = ftm.get_size_align(tid);
 
-      tc.print_type(cout, tid);
+      ftm.print_type(cout, tid);
       cout << "Size: " << sa.get_size() << endl;
       cout << "Alignment: " << (int) sa.get_align() << endl;
 
       cout << "Sorted members (in sort priority order):" << endl;
-      for( auto f : tc.get_sorted_members(index) )
+      for( auto f : ftm.get_sorted_members(index) )
          cout << f << endl;
    };
 
-   auto type1_tid = type_id::make_struct(tc.get_struct_index<type1>());
+   auto type1_tid = type_id::make_struct(ftm.get_struct_index<type1>());
    print_type_info(type1_tid);
    cout << endl;
 
-   auto type2_tid = type_id::make_struct(tc.get_struct_index<type2>());
+   auto type2_tid = type_id::make_struct(ftm.get_struct_index<type2>());
    print_type_info(type2_tid);
    cout << endl;
 
-   auto type3_tid = type_id::make_struct(tc.get_struct_index<type3>());
+   auto type3_tid = type_id::make_struct(ftm.get_struct_index<type3>());
    print_type_info(type3_tid);
    cout << endl;
-
-   //auto tm = tc.destructively_extract_types_manager();
-   auto tm = tc.copy_types_manager();
-   serialization_region r(tm);
 
    type1 s1{ .a = 8, .b = 9, .c = {1, 2, 3, 4, 5, 6} };
    
@@ -170,7 +170,7 @@ int main()
 
    type3 s5{ .x = 8, .y = 9 };
    cout << "Struct s5 is {x = " << s5.x << ", y = " << s5.y << "}." << endl;
-   serialization_region r3(tm);
+   serialization_region r3(ftm);
    r3.write_type(s5, type3_tid);
    auto c4 = tm.compare_object_with_key( r.get_raw_region(), r3.get_raw_region(), tbl_indx2 );
    cout << "The relevant key extracted from object s1 would " << (c4 == 0 ? "be equal to" : (c4 < 0 ? "come before" : "come after")) 
@@ -208,7 +208,7 @@ int main()
       if( key_type.get_type_class() == type_id::builtin_type )
          key_type_name = type_id::get_builtin_type_name(key_type.get_builtin_type());
       else
-         key_type_name = tc.get_struct_name(key_type.get_type_index());
+         key_type_name = ftm.get_struct_name(key_type.get_type_index());
 
       cout << "Index " << (i+1)  << " of the 'type1' table is " << (ti.is_unique() ? "unique" : "non-unique")
            << " and sorted according to the key type '" << key_type_name

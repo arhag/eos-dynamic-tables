@@ -49,19 +49,23 @@ int main()
    auto ac = types_initializer<table_test1_types>::init();
   
    types_constructor tc(ac.get_abi());
+   auto types_managers = tc.destructively_extract_types_managers();
+   const auto& tm  = types_managers.first;
+   const auto& ftm = types_managers.second;
+   serialization_region r(ftm);
 
    auto print_type_info = [&](type_id tid)
    {
       auto index = tid.get_type_index();
-      cout << tc.get_struct_name(index) << " (index = " << index << "):" << endl;
-      auto sa = tc.get_size_align_of_struct(index);
+      cout << ftm.get_struct_name(index) << " (index = " << index << "):" << endl;
+      auto sa = ftm.get_size_align(tid);
 
-      tc.print_type(cout, tid);
+      ftm.print_type(cout, tid);
       cout << "Size: " << sa.get_size() << endl;
       cout << "Alignment: " << (int) sa.get_align() << endl;
 
       cout << "Sorted members (in sort priority order):" << endl;
-      for( auto f : tc.get_sorted_members(index) )
+      for( auto f : ftm.get_sorted_members(index) )
          cout << f << endl;
    };
 
@@ -71,20 +75,15 @@ int main()
       cout << r << endl; 
    };
 
-   auto type1_tid = type_id::make_struct(tc.get_struct_index<type1>());
+   auto type1_tid = type_id::make_struct(ftm.get_struct_index<type1>());
    print_type_info(type1_tid);
    cout << endl;
 
-   auto type2_tid = type_id::make_struct(tc.get_struct_index<type2>());
+   auto type2_tid = type_id::make_struct(ftm.get_struct_index<type2>());
    print_type_info(type2_tid);
    cout << endl;
 
-   auto tm = tc.destructively_extract_types_manager();
-   //auto tm = tc.copy_types_manager();
-
    dynamic_table_3 table_type1(make_dynamic_table_ctor_args_list<3>(tm, tm.get_table("type1")));
-
-   serialization_region r(tm);
 
    cout << "Size of table 'type1': " << table_type1.size() << endl << endl;
 

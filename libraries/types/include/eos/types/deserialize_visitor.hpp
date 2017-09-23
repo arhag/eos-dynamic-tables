@@ -2,7 +2,7 @@
 
 #include <eos/types/reflect.hpp>
 #include <eos/types/raw_region.hpp>
-#include <eos/types/types_manager.hpp>
+#include <eos/types/full_types_manager.hpp>
 
 #include <type_traits>
 #include <stdexcept>
@@ -11,12 +11,12 @@ namespace eos { namespace types {
 
    struct deserialize_visitor
    {
-      const types_manager& tm;
+      const full_types_manager& tm;
       const raw_region&  r;
       type_id            tid;
       uint32_t           offset = 0;
 
-      deserialize_visitor( const types_manager& tm, const raw_region& r, type_id tid, uint32_t offset)
+      deserialize_visitor( const full_types_manager& tm, const raw_region& r, type_id tid, uint32_t offset)
          : tm(tm), r(r), tid(tid), offset(offset)
       {}
 
