@@ -152,7 +152,7 @@ namespace eos { namespace types {
       return {size, align};
    }
 
-   tuple<uint32_t, uint32_t, uint32_t> 
+   tuple<uint32_t, uint16_t, uint16_t> 
    types_manager_common::get_members_common(type_id::index_t struct_index)const
    {
       if( struct_index + 3 >= types.size() )
@@ -161,8 +161,8 @@ namespace eos { namespace types {
       auto itr = types.begin() + struct_index + 1;
       auto member_data_offset = *itr;
       ++itr;
-      auto total_num_members  = (*itr >> 16);
-      auto num_sorted_members = (*itr & 0xFFFF);
+      uint16_t total_num_members  = (*itr >> 16);
+      uint16_t num_sorted_members = (*itr & 0xFFFF);
       
       if( (member_data_offset + num_sorted_members + total_num_members) > members.size() )
          throw std::runtime_error("Invariant failure: range would be out of the bounds, most likely because struct_index was not valid.");
@@ -174,7 +174,7 @@ namespace eos { namespace types {
    types_manager_common::get_sorted_members(type_id::index_t struct_index)const
    {
       uint32_t member_data_offset;
-      uint32_t num_sorted_members;
+      uint16_t num_sorted_members;
       std::tie(member_data_offset, num_sorted_members, std::ignore) = get_members_common(struct_index);
       return make_range(members, member_data_offset, member_data_offset + num_sorted_members); 
    }

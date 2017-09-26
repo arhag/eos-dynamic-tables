@@ -27,20 +27,9 @@ namespace eos { namespace types {
 
       static const map<string, type_id::builtin> known_builtin_types;
 
-      types_constructor() {}
+      // types_constructor() {}
 
       types_constructor( const ABI& abi );
-
-      void             forward_declare(const set<string>& forward_declarations);
-      inline type_id::index_t forward_declare(const char* declared_name) { return forward_declare(string(declared_name)); }
-      type_id::index_t forward_declare(const string& declared_name);
-      type_id::index_t add_struct(const string& name, const vector<pair<type_id, int16_t>>& fields, type_id base = type_id(), int16_t base_sort = 0 );
-      type_id::index_t add_tuple(const vector<type_id>& fields);
-      type_id::index_t add_array(type_id element_type, uint32_t num_elements);
-      type_id::index_t add_vector(type_id element_type);
-      type_id::index_t add_optional(type_id element_type);
-      type_id::index_t add_variant(const vector<type_id>& cases);
-      type_id::index_t add_table(type_id::index_t object_index, const vector<ABI::table_index>& indices);
 
       bool             is_type_valid(type_id tid)const;
       inline bool      is_disabled()const { return disabled; }
@@ -75,14 +64,16 @@ namespace eos { namespace types {
       map<vector<type_id>, type_id::index_t>          variant_lookup;
       map<type_id::index_t, type_id::index_t>         table_lookup;
 
+      map<string, uint64_t>                                        field_names;
+      vector<pair<decltype(field_names)::const_iterator, int16_t>> struct_fields;
+      map<type_id::index_t, uint64_t>                              struct_fields_map;
+
       map<type_id::index_t, string>     valid_struct_start_indices;
       set<type_id::index_t>             valid_tuple_start_indices;
       set<type_id::index_t>             valid_array_start_indices;
       set<type_id::index_t>             valid_vector_start_indices;
       set<type_id::index_t>             valid_sum_type_start_indices;
       set<type_id::index_t>             valid_table_start_indices;
-
-      flat_map<type_id::index_t, type_id> valid_indices;
 
       map<string, type_id::index_t>     incomplete_structs;
 
@@ -103,6 +94,17 @@ namespace eos { namespace types {
                                        type_id base = type_id(), int16_t base_sort = 0,
                                        bool was_previously_declared = false);
       pair<type_id::size_align, uint16_t> process_struct(const vector<pair<type_id, int16_t>>& fields, type_id base, int16_t base_sort);
+
+      void             forward_declare(const set<string>& forward_declarations);
+      inline type_id::index_t forward_declare(const char* declared_name) { return forward_declare(string(declared_name)); }
+      type_id::index_t forward_declare(const string& declared_name);
+      type_id::index_t add_struct(const string& name, const vector<pair<type_id, int16_t>>& fields, type_id base = type_id(), int16_t base_sort = 0 );
+      type_id::index_t add_tuple(const vector<type_id>& fields);
+      type_id::index_t add_array(type_id element_type, uint32_t num_elements);
+      type_id::index_t add_vector(type_id element_type);
+      type_id::index_t add_optional(type_id element_type);
+      type_id::index_t add_variant(const vector<type_id>& cases);
+      type_id::index_t add_table(type_id::index_t object_index, const vector<ABI::table_index>& indices);
 
       pair<uint32_t, uint32_t> add_struct_view(type_id::index_t object_index, type_id::builtin builtin_type, uint16_t object_member_index);
       pair<uint32_t, uint32_t> add_struct_view(type_id::index_t object_index, type_id::index_t key_index, const vector<uint16_t>& mapping);

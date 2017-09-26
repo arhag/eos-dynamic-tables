@@ -1,5 +1,6 @@
 #include <eos/types/types_constructor.hpp>
 #include <eos/types/bit_view.hpp>
+#include <eos/types/types_manager_common.hpp>
 
 #include <stdexcept>
 #include <algorithm>
@@ -95,7 +96,7 @@ namespace eos { namespace types {
                auto res = struct_map.emplace(i, set<string>());
                itr = res.first;
             }
-            auto& field_names = itr->second;
+            auto& names_of_fields = itr->second;
 
             type_id base;
             if( t.second != -1 )
@@ -104,17 +105,26 @@ namespace eos { namespace types {
                base = remap_abi_type(abi, index_map, struct_map, base_tid);
             }
 
+            uint64_t struct_fields_index = struct_fields.size();
+            struct_fields.resize( struct_fields.size() + s.fields.size() );
+
             vector<pair<type_id, int16_t>> fields;
+            uint64_t indx = struct_fields_index;
             for( const auto& p : s.fields )
             {
                if( !is_name_valid(p.first) )
                   throw std::invalid_argument("Name of field is not valid.");
 
-               if( !field_names.insert(p.first).second )
+               if( !names_of_fields.insert(p.first).second )
                   throw std::invalid_argument("Another field with same name already exists within the struct.");
+
+               auto res = field_names.emplace(p.first, 0);
+               struct_fields[indx].first = res.first;
 
                auto t = remap_abi_type(abi, index_map, struct_map, p.second);
                fields.emplace_back(t, 0);
+
+               ++indx;
             }
 
             int16_t base_sort = 0;
@@ -126,13 +136,24 @@ namespace eos { namespace types {
                else if( j == -1 )
                   base_sort = -counter;
                else if( j > 0 )
-                  fields.at(j-1).second = counter;                  
+               {
+                  fields.at(j-1).second = counter;
+                  struct_fields[struct_fields_index + (j-1)].second = counter;
+               }
                else
+               {
                   fields.at(-(j+2)).second = -counter;
+                  struct_fields[struct_fields_index - (j+2)].second = -counter;
+               }
                ++counter;
             }
 
-            return add_struct(s.name, fields, base, base_sort);
+            auto index = add_struct(s.name, fields, base, base_sort);
+            uint64_t storage = 0;
+            full_types_manager::fields_index_window::set(storage, struct_fields_index);
+            full_types_manager::sort_order_window::set(storage, base_sort);
+            struct_fields_map.emplace(index, storage);
+            return index;
          }
          case ABI::tuple_type:
          {
@@ -1226,6 +1247,16 @@ namespace eos { namespace types {
          // Insertion time complexity should be constant since struct_lookup is sorted in same order as table_lookup_by_name.
       } 
 
+      vector<string> all_field_names;
+      all_field_names.reserve(field_names.size());
+      
+      auto field_names_itr = field_names.begin();
+      for( uint64_t i = 0; field_names_itr != field_names.end(); ++field_names_itr, ++i )
+      {
+         field_names_itr->second = i;
+         all_field_names.push_back(field_names_itr->first);
+      }
+
       vector<pair<type_id::index_t, uint32_t>> struct_index_map;
       struct_index_map.reserve(struct_lookup.size());
 
@@ -1234,47 +1265,28 @@ namespace eos { namespace types {
       uint32_t counter = 0;
       for(const auto& p : struct_lookup )
       {
-         uint32_t storage = 0;
-         auto itr = table_lookup.find(p.second);
-         if( itr == table_lookup.end() ) // Struct with no corresponding table
-         {
-            //full_types_manager::is_table_window::set(storage, false); // Redundant since storage == 0 means it is already false.
-            full_types_manager::index_window::set(storage, p.second); // Set to struct index
-         }
-         else // Has table
-         {
-            full_types_manager::is_table_window::set(storage, true); 
-            full_types_manager::index_window::set(storage, itr->second); // Set to table index instead
-         }
-
-         lookup_by_name.emplace_hint(lookup_by_name.cend(), p.first, storage);
+         lookup_by_name.emplace_hint(lookup_by_name.cend(), p.first, 0);
          // Insertion time complexity should be constant since struct_lookup is sorted in same order as lookup_by_name.
         
          struct_index_map.emplace_back(p.second, counter); 
          ++counter;
       }
 
-      std::sort(struct_index_map.begin(), struct_index_map.end(), 
-                [&](const typename decltype(struct_index_map)::value_type& lhs, const typename decltype(struct_index_map)::value_type& rhs)
+      auto compare_on_first = [](const typename decltype(struct_index_map)::value_type& lhs, const typename decltype(struct_index_map)::value_type& rhs)
       {
          return lhs.first < rhs.first;
-      });
-
-      // Build valid_indices such that:
-      //  1) The keys of valid_indices is equivalent to merging the keys of valid_{struct,tuple,array,vector,sum_type,table}_start_indices;
-      //  2) and, the value corresponding to a key has a type class corresponding to where that index came from (with the exception of table indices)
-      //     and with the further restriction that:
-      //       * if the index came from valid_table_start_indices then the value should be a Void type_id,
-      //       * if the index came from valid_tuple_start_indices then the value should have a type index equal to 0,
-      //       * and, if the index came from valid_struct_start_indices then the value should have a type index equal to one more than the index
-      //         into the sorted sequence of pairs making up the lookup_by_name flat_map point to a particular pair which has a key equal to the name of the struct.
-      flat_map<type_id::index_t, type_id> valid_indices;
-      auto expected_size =  valid_struct_start_indices.size() + valid_tuple_start_indices.size() + valid_table_start_indices.size()
-                             + valid_array_start_indices.size() + valid_vector_start_indices.size() + valid_sum_type_start_indices.size();
-      valid_indices.reserve(expected_size);
+      };
+      std::sort(struct_index_map.begin(), struct_index_map.end(), compare_on_first);
+               
+      vector<uint32_t> valid_indices;
+      uint32_t expected_count =  valid_struct_start_indices.size() + valid_tuple_start_indices.size() + valid_table_start_indices.size()
+                                  + valid_array_start_indices.size() + valid_vector_start_indices.size() + valid_sum_type_start_indices.size();
+      uint32_t actual_count   = 0;
+      valid_indices.reserve(expected_count + valid_table_start_indices.size() + 3 * valid_struct_start_indices.size());
 
       auto table_itr    = valid_table_start_indices.begin(); 
-      auto struct_itr   = struct_index_map.begin(); // The keys of struct_index_map should be the same thing as the sorted keys of valid_struct_start_indices 
+      auto struct_itr   = struct_index_map.begin(); // The keys of struct_index_map should be the same thing as the sorted keys of valid_struct_start_indices
+      auto struct_itr2  = struct_fields_map.begin(); // Should have identical keys as struct_index_map. 
       auto tuple_itr    = valid_tuple_start_indices.begin(); 
       auto array_itr    = valid_array_start_indices.begin(); 
       auto vector_itr   = valid_vector_start_indices.begin(); 
@@ -1289,61 +1301,154 @@ namespace eos { namespace types {
       next_indices[4] = get_index_from_key(valid_vector_start_indices,   vector_itr);
       next_indices[5] = get_index_from_key(valid_sum_type_start_indices, sum_type_itr);
 
+      using index_type = full_types_manager::index_type;
+
+      vector<uint64_t> fields_info;
+      
+      types_manager_common tm(types_full, members_full);
+      uint32_t cont_storage = 0;
+      full_types_manager::continuation_window::set(cont_storage, true);
       while(true)
       {
          auto itr = std::min_element(next_indices.begin(), next_indices.end());
          if( *itr == type_id::type_index_limit )
             break;
 
+         ++actual_count;
          auto index = *itr;
 
-         type_id tid;
+         uint32_t storage = 0;
+         full_types_manager::index_window::set(storage, index);
          switch( itr - next_indices.begin() )
          {
             case 0: // table
+            {
+               // types_constructor processes all structs in ABI prior to processing any table, so it is safe to assume
+               // that the struct for this table object has already been processed in a previous iteration of this while loop.
+               
+               auto num_index = tm.get_num_indices_in_table(index);
+               auto struct_index = tm.get_struct_index_of_table_object(index);
+
+               auto itr2 = std::lower_bound(struct_index_map.begin(), struct_index_map.end(), std::make_pair(struct_index, 0), compare_on_first);
+               if( itr2 == struct_index_map.end() )
+                  throw std::runtime_error("Invariant failure: Could not find struct for the table object.");
+               auto itr3 = lookup_by_name.begin() + itr2->second;
+               auto object_entry_index = itr3->second; // At this point in the while loop iteration, itr3->second holds the index into valid_indices for the entry of the table object struct.
+               itr3->second = valid_indices.size();    // But now we replace it with the index to the entry for the table itself.
+              
+               full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::table_index));
+               if( (num_index & 0x80) > 0) 
+               full_types_manager::three_bits_window::set(storage, (num_index & 0x60) ); // Store high 3 bits of num_indices in first part of the entry.
+               valid_indices.push_back(storage);
+
+               storage = cont_storage;
+               full_types_manager::five_bits_window::set(storage, (num_index & 0x1F) ); // Store low 5 bits of num_indices in the second part of the entry.
+               full_types_manager::large_index_window::set(storage, object_entry_index); // Store index into valid_indices of the table object struct.
+               valid_indices.push_back(storage);
+               
                ++table_itr;
                next_indices[0] = get_index_from_key(valid_table_start_indices,    table_itr);
                break;
+            }
             case 1: // struct
-               tid = type_id::make_struct( 1 + (struct_itr - struct_index_map.begin()) );
+            {
+               uint64_t fields_info_index = fields_info.size();
+ 
+               if( struct_itr2->first != index )
+                  throw std::runtime_error("Invariant failure: keys of struct_fields_map do not match keys of struct_index_map."); 
+
+               auto struct_fields_index = full_types_manager::fields_index_window::get(struct_itr2->second);
+
+               uint16_t total_num_members;
+               std::tie(std::ignore, std::ignore, total_num_members) = tm.get_members_common(index);
+
+               type_id::index_t base_index;
+               std::tie(base_index, std::ignore) = tm.get_base_info(index); 
+               if( base_index == type_id::type_index_limit )
+               {
+                 full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::simple_struct_index));
+               }
+               else
+               {
+                 full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::derived_struct_index));
+                 --total_num_members; // Total number of members is now total number of fields. 
+               }
+
+               auto r = make_range(struct_fields, struct_fields_index, struct_fields_index + total_num_members);
+               for( const auto& p : r )
+               {
+                  uint64_t storage2 = 0;
+                  full_types_manager::fields_index_window::set(storage2, p.first->second);
+                  full_types_manager::sort_order_window::set(storage2, p.second);
+                  fields_info.push_back(storage2);
+               } 
+
+               (lookup_by_name.begin() + struct_itr->second)->second = valid_indices.size();
+
+               // Store high 3 bits of fields_info_index (bits 37 to 39) in first part of the entry.
+               full_types_manager::three_bits_window::set(storage, static_cast<uint8_t>(fields_info_index >> 37));
+               valid_indices.push_back(storage);
+
+               storage = cont_storage;
+               full_types_manager::index_window::set(storage, struct_itr->second); // Index into lookup_by_name
+               // Store next 7 bits of fields_info_index (bits 30 to 36) in second part of the entry.
+               full_types_manager::seven_bits_window::set(storage, static_cast<uint8_t>((fields_info_index & 0x1FC0000000) >> 30));
+               valid_indices.push_back(storage);
+
+               storage = cont_storage;
+               full_types_manager::field_size_window::set(storage, total_num_members);
+               // Store next 15 bits of fields_info_index (bits 15 to 29) in third part of the entry.
+               full_types_manager::fifteen_bits_window::set(storage, static_cast<uint16_t>((fields_info_index & 0x3FFF8000) >> 15));
+               valid_indices.push_back(storage);
+
+               storage = cont_storage;
+               full_types_manager::base_sort_window::set(storage, full_types_manager::sort_order_window::get(struct_itr2->second));
+               // Store low 15 bits of fields_info_index (bits 0 to 14) in third part of the entry.
+               full_types_manager::fifteen_bits_window::set(storage, static_cast<uint16_t>(fields_info_index & 0x7FFF));
+               valid_indices.push_back(storage);
+
                ++struct_itr;
+               ++struct_itr2;
                next_indices[1] = get_index_from_key(struct_index_map,             struct_itr);
                break;
+            }
             case 2: // tuple
-               tid = type_id::make_struct(0);
+               full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::tuple_index)); 
+               valid_indices.push_back(storage);
                ++tuple_itr;
                next_indices[2] = get_index_from_key(valid_tuple_start_indices,    tuple_itr);
                break;
             case 3: // array
-               tid = type_id::make_array(*itr);
+               full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::array_index)); 
+               valid_indices.push_back(storage);
                ++array_itr;
                next_indices[3] = get_index_from_key(valid_array_start_indices,    array_itr);
                break;
             case 4: // vector
-               tid = type_id::make_vector(*itr);
+               full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::vector_index)); 
+               valid_indices.push_back(storage);
                ++vector_itr;
                next_indices[4] = get_index_from_key(valid_vector_start_indices,   vector_itr);
                break;
             case 5: // sum_type
-               tid = type_id::make_variant(*itr); // Works for both variants and optionals
+               full_types_manager::index_type_window::set(storage, static_cast<uint8_t>(index_type::sum_type_index)); 
+               valid_indices.push_back(storage);
                ++sum_type_itr;
                next_indices[5] = get_index_from_key(valid_sum_type_start_indices, sum_type_itr);
                break;
             default:
                throw std::runtime_error("Unexpected result: this case should have never been reached.");
          }
-         
-         valid_indices.emplace_hint(valid_indices.cend(), index, tid);
-         // Insertion time complexity should be constant.
       }
-      if( valid_indices.size() != expected_size )
-         throw std::runtime_error("Unexpected result: size of merged indices map is not correct.");
+      if( actual_count != expected_count )
+         throw std::runtime_error("Unexpected result: number of entries in merged indices map is not correct.");
 
       disabled = true;
-      types_manager tm(std::move(types_minimal), std::move(members_minimal), std::move(table_lookup_by_name));
-      full_types_manager ftm(std::move(types_full), std::move(members_full), std::move(lookup_by_name), std::move(valid_indices));
+      types_manager mtm(std::move(types_minimal), std::move(members_minimal), std::move(table_lookup_by_name));
+      full_types_manager ftm(std::move(types_full), std::move(members_full), std::move(lookup_by_name), 
+                             std::move(valid_indices), std::move(all_field_names), std::move(fields_info));
 
-      return {std::move(tm), std::move(ftm)};
+      return {std::move(mtm), std::move(ftm)};
    }
 
    type_id::size_align

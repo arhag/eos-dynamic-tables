@@ -345,7 +345,7 @@ namespace eos { namespace types {
       const vector<uint32_t>&       types;
       const vector<field_metadata>& members;
 
-      tuple<uint32_t, uint32_t, uint32_t> get_members_common(type_id::index_t struct_index)const;
+      tuple<uint32_t, uint16_t, uint16_t> get_members_common(type_id::index_t struct_index)const;
       type_id::size_align                 get_size_align(type_id tid, uint32_t* cache_ptr)const;
 
    };

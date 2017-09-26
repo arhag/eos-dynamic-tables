@@ -17,20 +17,44 @@ namespace eos { namespace types {
    {
    public:
       
-      using is_table_window = bit_view<bool,     31,  1, uint32_t>;
-      using index_window    = bit_view<uint32_t,  0, 24, uint32_t>;
+      using continuation_window  = bit_view<bool,     31,  1, uint32_t>;
+      using index_type_window    = bit_view<uint8_t,  28,  3, uint32_t>;
+      using three_bits_window    = bit_view<uint8_t,  24,  3, uint32_t>;
+      using seven_bits_window    = bit_view<uint8_t,  24,  7, uint32_t>;
+      using fifteen_bits_window  = bit_view<uint16_t, 16, 15, uint32_t>;
+      using index_window         = bit_view<uint32_t,  0, 24, uint32_t>;
+      using five_bits_window     = bit_view<uint8_t,  26,  5, uint32_t>;
+      using large_index_window   = bit_view<uint32_t,  0, 26, uint32_t>;
+      using field_size_window    = bit_view<uint16_t,  0, 16, uint32_t>;
+      using base_sort_window     = bit_view<int16_t,   0, 16, uint32_t>;
+
+      using sort_order_window    = bit_view<int16_t,  48, 16>;
+      using fields_index_window  = bit_view<uint64_t,  0, 40>;
+
+      enum class index_type : uint8_t
+      {
+         table_index = 0,
+         simple_struct_index,
+         derived_struct_index,
+         tuple_index,
+         array_index,
+         vector_index,
+         sum_type_index,
+      };
 
       full_types_manager(const full_types_manager& other)
          : types_manager_common(types, members), 
            types(other.types), members(other.members), 
-           lookup_by_name(other.lookup_by_name), valid_indices(other.valid_indices)
+           lookup_by_name(other.lookup_by_name), valid_indices(other.valid_indices),
+           field_names(other.field_names), fields_info(other.fields_info)
       {
       }
 
       full_types_manager(full_types_manager&& other)
          : types_manager_common(types, members), 
            types(std::move(other.types)), members(std::move(other.members)), 
-           lookup_by_name(std::move(other.lookup_by_name)), valid_indices(std::move(other.valid_indices))
+           lookup_by_name(std::move(other.lookup_by_name)), valid_indices(std::move(other.valid_indices)),
+           field_names(std::move(other.field_names)), fields_info(std::move(other.fields_info))
       {
       }
 
@@ -61,20 +85,43 @@ namespace eos { namespace types {
       
       vector<uint32_t>       types;
       vector<field_metadata> members;
-      flat_map<string, uint32_t>  lookup_by_name;      
-      flat_map<type_id::index_t, type_id> valid_indices;
+      flat_map<string, uint32_t>  lookup_by_name; // Value is an index into valid_indices. 
+      vector<uint32_t> valid_indices; // Entries can be multiple consecutive uint32_t's (4 if struct entry, 2 if table entry).
+                                      // All entires contain the index (into types vector) for the type (or table), and entries in valid_indices are sorted by that index value.
+                                      // Table also includes the number of indices (cached) and an index into valid_indices for the entry corresponding to the table object struct.
+                                      // Struct also includes index into lookup_by_name (for struct name), total number of fields of the struct, the (signed) base sort order (if applicable),
+                                      //   and an index into fields_info for the start (i.e. for first field) of the information for each of the fields of the struct in order.
+      vector<string>   field_names;   
+      vector<uint64_t> fields_info;   // The subset of consecutive uint64_t's for a specific struct contain the information for each of the fields (in order) of that struct.
+                                      // Each uint64_t contains info for a particular field of a particular struct. It contains the (signed) field sort order as well as the 
+                                      // index into field_names specifying the name of that field.
 
       full_types_manager(const vector<uint32_t>& t, const vector<field_metadata>& m, 
-                         const flat_map<string, uint32_t>& lookup, const flat_map<type_id::index_t, type_id>& v_i) 
-         : types_manager_common(types, members), types(t), members(m), lookup_by_name(lookup), valid_indices(v_i) 
+                         const flat_map<string, uint32_t>& lookup, 
+                         const vector<uint32_t>& v_i,
+                         const vector<string>& f_n, 
+                         const vector<uint64_t>& f_i)
+         : types_manager_common(types, members), types(t), members(m), 
+           lookup_by_name(lookup), valid_indices(v_i), field_names(f_n), fields_info(f_i)
       {
       }
 
       full_types_manager(vector<uint32_t>&& t, vector<field_metadata>&& m, 
-                         flat_map<string, uint32_t>&& lookup, flat_map<type_id::index_t, type_id>& v_i) 
-         : types_manager_common(types, members), types(t), members(m), lookup_by_name(lookup), valid_indices(v_i)
+                         flat_map<string, uint32_t>&& lookup, 
+                         vector<uint32_t>&& v_i,
+                         vector<string>&& f_n,
+                         vector<uint64_t>&& f_i) 
+         : types_manager_common(types, members), types(std::move(t)), members(std::move(m)), 
+           lookup_by_name(std::move(lookup)), valid_indices(std::move(v_i)), field_names(std::move(f_n)), fields_info(std::move(f_i))
       {
       }
+
+      pair<const string&, int16_t> get_struct_info(vector<uint32_t>::const_iterator itr)const;
+      range<vector<uint64_t>::const_iterator> get_struct_fields_info(vector<uint32_t>::const_iterator itr)const;
+
+      std::ptrdiff_t adjust_iterator(vector<uint32_t>::const_iterator& itr)const;
+      std::ptrdiff_t advance_iterator(vector<uint32_t>::const_iterator& itr)const;
+      vector<uint32_t>::const_iterator find_index(type_id::index_t index)const;
 
    };
 

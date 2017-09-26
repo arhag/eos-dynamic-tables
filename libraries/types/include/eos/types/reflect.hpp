@@ -111,11 +111,11 @@ bool const eos::types::reflector<T>::sorted_member_dir[BOOST_PP_SEQ_SIZE(member_
 
 #define EOS_TYPES_REFLECT_GET_MEMBER_INFO(fields, member_sort)                                               \
       EOS_TYPES_REFLECT_GET_MEMBER_INFO_COMMON(fields)                                                       \
-          static const char* _sorted_member_names[BOOST_PP_SEQ_SIZE(member_sort)] = {                        \
+         static const char* _sorted_member_names[BOOST_PP_SEQ_SIZE(member_sort)] = {                         \
             BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM(EOS_TYPES_REFLECT_MEMBER_NAME, _, member_sort))         \
          };                                                                                                  \
          *sorted_member_names = _sorted_member_names;                                                        \
-         bool               _sorted_member_dir[BOOST_PP_SEQ_SIZE(member_sort)] = {                           \
+         static bool        _sorted_member_dir[BOOST_PP_SEQ_SIZE(member_sort)] = {                           \
             BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM(EOS_TYPES_REFLECT_SORT_ORDER, _, member_sort))          \
          };                                                                                                  \
          *sorted_member_dir   = _sorted_member_dir;                                                          \
