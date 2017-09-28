@@ -1,9 +1,11 @@
-#include <eos/types/field_metadata.hpp>
+#include <eos/eoslib/field_metadata.hpp>
+#include <eos/eoslib/exceptions.hpp>
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
 #include <ostream>
 #include <iomanip>
-#include <stdexcept>
 #include <boost/io/ios_state.hpp>
+#endif
 
 namespace eos { namespace types {
  
@@ -28,12 +30,12 @@ namespace eos { namespace types {
       if( is_offset_in_bits() )
       {
          if( offset_window::get(_extra) >= offset_limit_in_bits )
-            throw std::invalid_argument("Offset (specified in bits) is too large.");
+            EOS_ERROR(std::invalid_argument, "Offset (specified in bits) is too large.");
       }
       else
       {
          if( offset_window::get(_extra) >= offset_limit )
-            throw std::invalid_argument("Offset is too large.");
+            EOS_ERROR(std::invalid_argument, "Offset is too large.");
       } 
    }
 
@@ -46,7 +48,7 @@ namespace eos { namespace types {
       : _tid(tid), _extra(0)
    {
       if( offset >= offset_limit )
-         throw std::domain_error("Offset is too large"); 
+         EOS_ERROR(std::domain_error, "Offset is too large"); 
 
       offset_window::set(_extra, offset);
 
@@ -60,7 +62,7 @@ namespace eos { namespace types {
    void field_metadata::set_offset(uint32_t offset)
    {
       if( offset >= offset_limit )
-         throw std::domain_error("Offset is too large.");
+         EOS_ERROR(std::domain_error, "Offset is too large.");
 
       if( is_offset_in_bits() )
          offset <<= 3;
@@ -71,7 +73,7 @@ namespace eos { namespace types {
    void field_metadata::set_offset_in_bits(uint32_t offset)
    {
       if( offset >= offset_limit_in_bits )
-         throw std::domain_error("Offset is too large.");
+         EOS_ERROR(std::domain_error, "Offset is too large.");
 
       if( !is_offset_in_bits() )
          offset >>= 3;
@@ -79,6 +81,7 @@ namespace eos { namespace types {
       offset_window::set(_extra, offset);
    }
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
    std::ostream& operator<<(std::ostream& os, const field_metadata& f)
    {
       boost::io::ios_flags_saver ifs( os );
@@ -104,6 +107,7 @@ namespace eos { namespace types {
 
       return os;
    }
+#endif
 
 } }
 

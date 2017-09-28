@@ -1,7 +1,7 @@
 #pragma once
 
 #include <eos/table/dynamic_object.hpp>
-#include <eos/types/type_id.hpp>
+#include <eos/eoslib/type_id.hpp>
 #include <eos/types/types_manager.hpp>
 
 #include <type_traits>

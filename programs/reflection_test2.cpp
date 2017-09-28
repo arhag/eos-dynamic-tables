@@ -1,9 +1,11 @@
-#include <eos/types/serialization_region.hpp>
+#include <eos/eoslib/serialization_region.hpp>
 #include <eos/types/abi_constructor.hpp>
 #include <eos/types/types_constructor.hpp>
+#include <eos/types/types_manager.hpp>
+#include <eos/eoslib/full_types_manager.hpp>
 #include <eos/types/reflect.hpp>
+#include <eos/eoslib/type_traits.hpp>
 
-#include <type_traits>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -11,6 +13,18 @@
 using std::vector;
 using std::array;
 using std::string;
+
+using eoslib::enable_if;
+using eoslib::is_integral;
+using eoslib::is_same;
+
+template<typename T>
+inline
+typename enable_if<eos::types::reflector<T>::is_struct::value, eos::types::type_id::index_t>::type
+get_struct_index(const eos::types::full_types_manager& ftm)
+{
+   return ftm.get_struct_index(eos::types::reflector<T>::name());
+}
 
 struct eos_symbol;
 struct currency_symbol;
@@ -20,7 +34,7 @@ class token
 {
 private:
 
-   using enable_if_t = typename std::enable_if< std::is_integral<NumberType>::value && !std::is_same<NumberType, bool>::value >::type; 
+   using enable_if_t = typename enable_if< is_integral<NumberType>::value && !is_same<NumberType, bool>::value >::type; 
       
    NumberType quantity;
 
@@ -211,15 +225,15 @@ int main()
          cout << f << endl;
    };
 
-   auto order_id_tid = type_id::make_struct(ftm.get_struct_index<order_id>());
+   auto order_id_tid = type_id::make_struct(get_struct_index<order_id>(ftm));
    print_type_info(order_id_tid);
    cout << endl;
 
-   auto bid_tid = type_id::make_struct(ftm.get_struct_index<bid>());
+   auto bid_tid = type_id::make_struct(get_struct_index<bid>(ftm));
    print_type_info(bid_tid);
    cout << endl;
 
-   auto ask_tid = type_id::make_struct(ftm.get_struct_index<ask>());
+   auto ask_tid = type_id::make_struct(get_struct_index<ask>(ftm));
    print_type_info(ask_tid);
    cout << endl;
 

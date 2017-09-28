@@ -1,11 +1,10 @@
 #pragma once
 
-#include <eos/types/type_id.hpp>
-#include <eos/types/field_metadata.hpp>
-#include <eos/types/abi.hpp>
-#include <eos/types/reflect.hpp>
+#include <eos/eoslib/type_id.hpp>
+#include <eos/eoslib/field_metadata.hpp>
+#include <eos/types/abi_definition.hpp>
 #include <eos/types/types_manager.hpp>
-#include <eos/types/full_types_manager.hpp>
+#include <eos/eoslib/full_types_manager.hpp>
 
 #include <utility>
 #include <string>

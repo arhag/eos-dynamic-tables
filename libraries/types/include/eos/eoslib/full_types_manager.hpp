@@ -1,12 +1,13 @@
 #pragma once
 
-#include <eos/types/types_manager_common.hpp>
-#include <eos/types/reflect.hpp>
-#include <eos/types/bit_view.hpp>
+#include <eos/eoslib/types_manager_common.hpp>
+#include <eos/eoslib/bit_view.hpp>
 
-#include <iosfwd>
 #include <string>
 #include <boost/container/flat_map.hpp>
+#ifdef EOS_TYPES_FULL_CAPABILITY
+#include <iosfwd>
+#endif
 
 namespace eos { namespace types {
 
@@ -65,21 +66,16 @@ namespace eos { namespace types {
       type_id::index_t                                   get_struct_index(const string& name)const;
       string                                             get_struct_name(type_id::index_t index)const;
 
-      template<typename T>
-      inline
-      typename std::enable_if<eos::types::reflector<T>::is_struct::value, type_id::index_t>::type
-      get_struct_index()const
-      {
-         return get_struct_index(eos::types::reflector<T>::name());
-      }
-
       bool                                               is_type_valid(type_id tid)const;
       type_id::size_align                                get_size_align(type_id tid)const;
 
-      void print_type(std::ostream& os, type_id tid)const;
 
       friend class types_constructor;
+
+#ifdef EOS_TYPES_FULL_CAPABILITY
+      void print_type(std::ostream& os, type_id tid)const;
       friend struct print_type_visitor;
+#endif
 
    private:
       

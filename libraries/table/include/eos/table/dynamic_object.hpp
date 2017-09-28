@@ -1,6 +1,6 @@
 #pragma once
 
-#include <eos/types/raw_region.hpp>
+#include <eos/eoslib/raw_region.hpp>
 #include <eos/types/types_manager.hpp>
 
 namespace eos { namespace table {

@@ -1,8 +1,11 @@
-#include <eos/types/serialization_region.hpp>
+#include <eos/eoslib/serialization_region.hpp>
 #include <eos/types/abi_constructor.hpp>
 #include <eos/types/types_constructor.hpp>
+#include <eos/types/types_manager.hpp>
+#include <eos/eoslib/full_types_manager.hpp>
 #include <eos/types/reflect.hpp>
 #include <eos/table/dynamic_table.hpp>
+#include <eos/eoslib/type_traits.hpp>
 
 #include <iostream>
 #include <iterator>
@@ -11,6 +14,16 @@
 using std::vector;
 using std::array;
 using std::string;
+
+using eoslib::enable_if;
+
+template<typename T>
+inline
+typename enable_if<eos::types::reflector<T>::is_struct::value, eos::types::type_id::index_t>::type
+get_struct_index(const eos::types::full_types_manager& ftm)
+{
+   return ftm.get_struct_index(eos::types::reflector<T>::name());
+}
 
 struct type1
 {
@@ -75,11 +88,11 @@ int main()
       cout << r << endl; 
    };
 
-   auto type1_tid = type_id::make_struct(ftm.get_struct_index<type1>());
+   auto type1_tid = type_id::make_struct(get_struct_index<type1>(ftm));
    print_type_info(type1_tid);
    cout << endl;
 
-   auto type2_tid = type_id::make_struct(ftm.get_struct_index<type2>());
+   auto type2_tid = type_id::make_struct(get_struct_index<type2>(ftm));
    print_type_info(type2_tid);
    cout << endl;
 

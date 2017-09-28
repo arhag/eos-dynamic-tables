@@ -1,9 +1,11 @@
-#include <eos/types/type_id.hpp>
+#include <eos/eoslib/type_id.hpp>
+#include <eos/eoslib/exceptions.hpp>
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
 #include <ostream>
 #include <iomanip>
-#include <stdexcept>
 #include <boost/io/ios_state.hpp>
+#endif
 
 namespace eos { namespace types {
    
@@ -54,7 +56,7 @@ namespace eos { namespace types {
       : _storage(0)
    { 
       if( num_elements == 0 )
-         throw std::domain_error("Number of elements cannot be 0.");
+         EOS_ERROR(std::domain_error, "Number of elements cannot be 0.");
 
       //if( num_elements >= small_builtin_array_limit ) // Redundant since the limit is the natural limit of the uint8_t
       //   throw std::domain_error("The maximum number of elements for a small array of builtins is 255. For larger arrays, use the make_array function."); 
@@ -66,7 +68,7 @@ namespace eos { namespace types {
    inline void check_index_limit(type_id::index_t index)
    {
       if( index >= type_id::type_index_limit )
-         throw std::domain_error("Index is too large.");
+         EOS_ERROR(std::domain_error, "Index is too large.");
    }
 
    inline void check_arguments(type_id::index_t index, uint8_t num_elements)
@@ -74,10 +76,10 @@ namespace eos { namespace types {
       check_index_limit(index);
 
       if( num_elements == 0 )
-         throw std::domain_error("Number of elements cannot be 0.");
+         EOS_ERROR(std::domain_error, "Number of elements cannot be 0.");
 
       if( num_elements >= type_id::small_array_limit )
-         throw std::domain_error("The maximum number of elements for a small array is 31. For larger arrays, use the make_array function.");
+         EOS_ERROR(std::domain_error, "The maximum number of elements for a small array is 31. For larger arrays, use the make_array function.");
    }
 
    type_id type_id::make_struct(index_t index, uint8_t num_elements)
@@ -160,7 +162,7 @@ namespace eos { namespace types {
    type_id::size_align type_id::get_builtin_type_size_align(builtin bt) 
    {
       if( static_cast<uint16_t>(bt) >= static_cast<uint16_t>(builtin_types_size) )
-         throw std::invalid_argument("Not a valid builtin type");
+         EOS_ERROR(std::invalid_argument, "Not a valid builtin type");
 
       uint8_t size_and_align = 8; // Default word size
       switch(bt)
@@ -198,7 +200,7 @@ namespace eos { namespace types {
    const char* type_id::get_builtin_type_name(builtin bt)
    {
       if( static_cast<uint16_t>(bt) >= static_cast<uint16_t>(builtin_types_size) )
-         throw std::invalid_argument("Not a valid builtin type");
+         EOS_ERROR(std::invalid_argument, "Not a valid builtin type");
 
       switch(bt)
       {
@@ -236,7 +238,7 @@ namespace eos { namespace types {
    type_id::type_class type_id::get_type_class()const
    {
       if( is_void() )
-         throw std::invalid_argument("Cannot call get_type_class on a Void type");
+         EOS_ERROR(std::invalid_argument, "Cannot call get_type_class on a Void type");
 
       uint32_t size = small_array_size_window::get(_storage);
       if( size > 1 )
@@ -273,13 +275,14 @@ namespace eos { namespace types {
       else if( size == 1 )
          return builtin_type;
       
-      throw std::runtime_error("Invariant failure: somehow a type_id with reserved representation was created.");
+      EOS_ERROR(std::runtime_error, "Invariant failure: somehow a type_id with reserved representation was created.");
+      return builtin_type; // Should never be reached. Just here to silence compiler warning.
    }
 
    type_id::builtin type_id::get_builtin_type()const
    {
       if( is_void() || small_array_size_window::get(_storage) > 0 || extra_metadata_window::get(_storage) >= 2 )
-         throw std::logic_error("This type does not contain a builtin.");
+         EOS_ERROR(std::logic_error, "This type does not contain a builtin.");
 
       return static_cast<builtin>(builtin_type_window::get(_storage));
    }
@@ -287,7 +290,7 @@ namespace eos { namespace types {
    type_id::index_t type_id::get_type_index()const
    {
       if( small_array_size_window::get(_storage) == 0 && extra_metadata_window::get(_storage) < 2 )
-         throw std::logic_error("This type does not contain an index.");
+         EOS_ERROR(std::logic_error, "This type does not contain an index.");
 
       return index_window::get(_storage);
    }
@@ -295,7 +298,7 @@ namespace eos { namespace types {
    void type_id::set_type_index(index_t index)
    {
      if( small_array_size_window::get(_storage) == 0 && extra_metadata_window::get(_storage) < 2 )
-         throw std::logic_error("This type does not contain an index.");
+         EOS_ERROR(std::logic_error, "This type does not contain an index.");
 
      check_index_limit(index);
      
@@ -317,9 +320,10 @@ namespace eos { namespace types {
          return 1;
       
       if( is_void() )
-         throw std::logic_error("Type is void.");
+         EOS_ERROR(std::logic_error, "Type is void.");
 
-      throw std::runtime_error("Invariant failure: somehow a type_id with reserved representation was created.");
+      EOS_ERROR(std::runtime_error, "Invariant failure: somehow a type_id with reserved representation was created.");
+      return 0; // Should never be reached. Just here to silence compiler warning.
    }
 
    type_id type_id::get_element_type()const // Return Void if it is not possible to find the element type
@@ -354,6 +358,28 @@ namespace eos { namespace types {
       return {storage, true};
    }
 
+   // Sorts in order of descending alignment and descending size (in that order of priority).
+   // However, alignments of 0 or 1 are treated the same.
+   bool operator<(type_id::size_align lhs, type_id::size_align rhs)
+   {
+      using size_align = type_id::size_align;
+
+      auto lhs_align = size_align::align_window::get(lhs._storage);
+      auto rhs_align = size_align::align_window::get(rhs._storage);
+      if( (lhs_align == 0 || lhs_align == 1) && rhs_align > 1 )
+         return false;
+      else if( lhs_align > 1 && (rhs_align == 0 || rhs_align == 1) )
+         return true;
+      else if( !(lhs_align > 1 && rhs_align > 1) )
+      {
+         lhs_align = 1;
+         rhs_align = 1;
+      }
+      // TODO: Handle bool arrays properly.      
+      return (lhs_align > rhs_align) || ( (lhs_align == rhs_align) && (size_align::size_window::get(lhs._storage) > size_align::size_window::get(rhs._storage)) );
+   }
+
+#ifdef EOS_TYPES_FULL_CAPABILITY
    void print_builtin(std::ostream& os, type_id tid)
    {
       auto tc = tid.get_type_class();
@@ -377,7 +403,7 @@ namespace eos { namespace types {
          return;
       }
    
-      throw std::invalid_argument("This function only prints builtins and small arrays of builtins");
+      EOS_ERROR(std::invalid_argument, "This function only prints builtins and small arrays of builtins");
    }
 
    std::ostream& operator<<(std::ostream& os, const type_id& tid)
@@ -421,7 +447,7 @@ namespace eos { namespace types {
                   tc = type_id::struct_type;
                   break;
                default:
-                  throw std::runtime_error("Unexpected result: should not have encountered this type class while writing type to output.");
+                  EOS_ERROR(std::runtime_error, "Unexpected result: should not have encountered this type class while writing type to output.");
             }
             break;
          }
@@ -453,33 +479,12 @@ namespace eos { namespace types {
             os << "sum_type";
             break;
          default:
-            throw std::runtime_error("Unexpected result: should not have encountered this type class while writing type to output.");
+            EOS_ERROR(std::runtime_error, "Unexpected result: should not have encountered this type class while writing type to output.");
       }
       os << "(" << tid.get_type_index() << ")]";
       return os;
    }
-
-   // Sorts in order of descending alignment and descending size (in that order of priority).
-   // However, alignments of 0 or 1 are treated the same.
-   bool operator<(type_id::size_align lhs, type_id::size_align rhs)
-   {
-      using size_align = type_id::size_align;
-
-      auto lhs_align = size_align::align_window::get(lhs._storage);
-      auto rhs_align = size_align::align_window::get(rhs._storage);
-      if( (lhs_align == 0 || lhs_align == 1) && rhs_align > 1 )
-         return false;
-      else if( lhs_align > 1 && (rhs_align == 0 || rhs_align == 1) )
-         return true;
-      else if( !(lhs_align > 1 && rhs_align > 1) )
-      {
-         lhs_align = 1;
-         rhs_align = 1;
-      }
-      // TODO: Handle bool arrays properly.      
-      return std::make_tuple(lhs_align, size_align::size_window::get(lhs._storage)) > std::make_tuple(rhs_align, size_align::size_window::get(rhs._storage));
-   }
-
+#endif
 
 } }
 

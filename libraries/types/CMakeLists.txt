@@ -1,7 +1,7 @@
 
-file(GLOB HEADERS  "${CMAKE_CURRENT_SOURCE_DIR}/include/eos/types/*.hpp")
+file(GLOB HEADERS  "${CMAKE_CURRENT_SOURCE_DIR}/include/eos/types/*.hpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/eos/eoslib/*.hpp")
 
-add_definitions(-DBOOST_PP_VARIADICS)
+add_definitions(-DBOOST_PP_VARIADICS -DEOS_TYPES_FULL_CAPABILITY)
 
 add_library( eos_types 
              reflect.cpp 

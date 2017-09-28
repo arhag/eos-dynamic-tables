@@ -1,10 +1,11 @@
-#include <eos/types/raw_region.hpp>
-#include <eos/types/field_metadata.hpp>
+#include <eos/eoslib/raw_region.hpp>
+#include <eos/eoslib/field_metadata.hpp>
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
 #include <ostream>
 #include <iomanip>
-#include <stdexcept>
 #include <boost/io/ios_state.hpp>
+#endif
 
 namespace eos { namespace types {
       
@@ -27,7 +28,7 @@ namespace eos { namespace types {
    void raw_region::extend(uint32_t new_offset_end)
    {
       if( new_offset_end >= field_metadata::offset_limit )
-         throw std::invalid_argument("Cannot enlarge raw region to that large of a size.");
+         EOS_ERROR(std::invalid_argument, "Cannot enlarge raw region to that large of a size.");
       if( new_offset_end <= raw_data.size() )
          return;
       raw_data.resize(new_offset_end);
@@ -38,6 +39,7 @@ namespace eos { namespace types {
       raw_data.clear();
    }
    
+#ifdef EOS_TYPES_FULL_CAPABILITY
    void raw_region::print_raw_data(std::ostream& os, uint32_t offset, uint32_t size)const
    {
       using std::endl;
@@ -45,10 +47,10 @@ namespace eos { namespace types {
       boost::io::ios_flags_saver ifs( os );
 
       if( offset >= offset_end() )
-         throw std::invalid_argument("Raw region subset is empty.");
+         EOS_ERROR(std::invalid_argument, "Raw region subset is empty.");
 
       if( size > 4096 )
-         throw std::invalid_argument("Raw region subset is too large to print.");
+         EOS_ERROR(std::invalid_argument, "Raw region subset is too large to print.");
 
       auto col = 0;
       auto row = 0;
@@ -85,6 +87,7 @@ namespace eos { namespace types {
       r.print_raw_data(os);
       return os;
    }
+#endif
 
 } }
 

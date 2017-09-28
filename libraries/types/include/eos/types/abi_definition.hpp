@@ -1,6 +1,6 @@
 #pragma once
 
-#include <eos/types/type_id.hpp>
+#include <eos/eoslib/type_id.hpp>
 
 #include <string>
 #include <vector>

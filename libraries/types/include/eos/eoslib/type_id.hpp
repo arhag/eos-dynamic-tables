@@ -1,8 +1,10 @@
 #pragma once
 
-#include <eos/types/bit_view.hpp>
+#include <eos/eoslib/bit_view.hpp>
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
 #include <iosfwd>
+#endif
 
 namespace eos { namespace types {
 
@@ -170,7 +172,9 @@ namespace eos { namespace types {
       friend inline bool operator==(type_id lhs, type_id rhs) { return lhs.get_storage() == rhs.get_storage(); }
       friend inline bool operator!=(type_id lhs, type_id rhs) { return lhs.get_storage() != rhs.get_storage(); }
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
       friend std::ostream& operator<<(std::ostream& os, const type_id&);
+#endif
 
    };
 

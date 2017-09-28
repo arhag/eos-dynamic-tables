@@ -1,3 +1,5 @@
+add_definitions(-DEOS_TYPES_FULL_CAPABILITY)
+
 add_executable( reflection_test1 reflection_test1.cpp )
 target_link_libraries( reflection_test1 eos_types )
 

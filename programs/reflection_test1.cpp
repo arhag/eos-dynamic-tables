@@ -1,7 +1,11 @@
-#include <eos/types/serialization_region.hpp>
+#include <eos/eoslib/serialization_region.hpp>
 #include <eos/types/abi_constructor.hpp>
+#include <eos/types/abi.hpp>
 #include <eos/types/types_constructor.hpp>
+#include <eos/types/types_manager.hpp>
+#include <eos/eoslib/full_types_manager.hpp>
 #include <eos/types/reflect.hpp>
+#include <eos/eoslib/type_traits.hpp>
 
 #include <iostream>
 #include <iterator>
@@ -10,6 +14,16 @@
 using std::vector;
 using std::array;
 using std::string;
+
+using eoslib::enable_if;
+
+template<typename T>
+inline
+typename enable_if<eos::types::reflector<T>::is_struct::value, eos::types::type_id::index_t>::type
+get_struct_index(const eos::types::full_types_manager& ftm)
+{
+   return ftm.get_struct_index(eos::types::reflector<T>::name());
+}
 
 struct type1
 {
@@ -70,14 +84,14 @@ int main()
    types_constructor abi_tc(abi_ac.get_abi());
    auto abi_types_managers = abi_tc.destructively_extract_types_managers();
    const auto& abi_tm = abi_types_managers.second;
-   auto abi_tid = type_id::make_struct(abi_tm.get_struct_index<ABI>());
+   auto abi_tid = type_id::make_struct(get_struct_index<ABI>(abi_tm));
    serialization_region abi_serializer(abi_tm);
 
    vector<type_id::index_t> abi_structs = { abi_tid.get_type_index(),
-                                            abi_tm.get_struct_index<ABI::type_definition>(),
-                                            abi_tm.get_struct_index<ABI::struct_t>(),
-                                            abi_tm.get_struct_index<ABI::table_index>(),
-                                            abi_tm.get_struct_index<ABI::table>()
+                                            get_struct_index<ABI::type_definition>(abi_tm),
+                                            get_struct_index<ABI::struct_t>(abi_tm),
+                                            get_struct_index<ABI::table_index>(abi_tm),
+                                            get_struct_index<ABI::table>(abi_tm)
                                           };
    for( auto indx : abi_structs )
    {
@@ -118,15 +132,15 @@ int main()
          cout << f << endl;
    };
 
-   auto type1_tid = type_id::make_struct(ftm.get_struct_index<type1>());
+   auto type1_tid = type_id::make_struct(get_struct_index<type1>(ftm));
    print_type_info(type1_tid);
    cout << endl;
 
-   auto type2_tid = type_id::make_struct(ftm.get_struct_index<type2>());
+   auto type2_tid = type_id::make_struct(get_struct_index<type2>(ftm));
    print_type_info(type2_tid);
    cout << endl;
 
-   auto type3_tid = type_id::make_struct(ftm.get_struct_index<type3>());
+   auto type3_tid = type_id::make_struct(get_struct_index<type3>(ftm));
    print_type_info(type3_tid);
    cout << endl;
 

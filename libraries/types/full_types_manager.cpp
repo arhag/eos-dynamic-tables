@@ -1,10 +1,13 @@
-#include <eos/types/full_types_manager.hpp>
+#include <eos/eoslib/full_types_manager.hpp>
+#include <eos/eoslib/exceptions.hpp>
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
 #include <ostream>
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
 #include <boost/io/ios_state.hpp>
+#endif
 
 namespace eos { namespace types {
 
@@ -25,7 +28,7 @@ namespace eos { namespace types {
       uint16_t total_num_members;
       std::tie(member_data_offset, num_sorted_members, total_num_members) = get_members_common(struct_index);
       if( member_index >= total_num_members )
-         throw std::out_of_range("Trying to get a member which does not exist.");
+         EOS_ERROR(std::out_of_range, "Trying to get a member which does not exist.");
 
       return members[(member_data_offset + num_sorted_members) + member_index];
    }
@@ -34,11 +37,11 @@ namespace eos { namespace types {
    {
       auto itr = lookup_by_name.find(name);
       if( itr == lookup_by_name.end() )
-         throw std::invalid_argument("Cannot find table with the given name.");
+         EOS_ERROR(std::invalid_argument, "Cannot find table with the given name.");
 
       auto storage = valid_indices[itr->second];
       if( static_cast<index_type>(index_type_window::get(storage)) != index_type::table_index )
-         throw std::invalid_argument("Name does not refer to a table.");
+         EOS_ERROR(std::invalid_argument, "Name does not refer to a table.");
 
       return index_window::get(storage);
    }
@@ -47,7 +50,7 @@ namespace eos { namespace types {
    {
       auto itr = lookup_by_name.find(name);
       if( itr == lookup_by_name.end() )
-         throw std::invalid_argument("Cannot find struct with the given name.");
+         EOS_ERROR(std::invalid_argument, "Cannot find struct with the given name.");
 
       auto storage = valid_indices[itr->second];
       auto t = static_cast<index_type>(index_type_window::get(storage));
@@ -63,11 +66,11 @@ namespace eos { namespace types {
    {
       auto itr = find_index(index);
       if( itr == valid_indices.end() )
-         throw std::invalid_argument("Not a valid struct index.");
+         EOS_ERROR(std::invalid_argument, "Not a valid struct index.");
       
       auto t = static_cast<index_type>(index_type_window::get(*itr));
       if( t != index_type::simple_struct_index && t != index_type::derived_struct_index )
-         throw std::invalid_argument("Index is not to a struct type.");
+         EOS_ERROR(std::invalid_argument, "Index is not to a struct type.");
 
       ++itr; 
 
@@ -123,11 +126,126 @@ namespace eos { namespace types {
    type_id::size_align full_types_manager::get_size_align(type_id tid)const
    {
       if( !is_type_valid(tid) )
-         throw std::invalid_argument("Type is not valid.");
+         EOS_ERROR(std::invalid_argument, "Type is not valid.");
 
       return types_manager_common::get_size_align(tid);
    }
 
+   pair<const string&, int16_t> 
+   full_types_manager::get_struct_info(vector<uint32_t>::const_iterator itr)const
+   {
+      if( itr == valid_indices.end() || continuation_window::get(*itr) )
+         EOS_ERROR(std::invalid_argument, "Iterator does not point to the start of an entry within valid_indices.");
+
+      auto t = static_cast<index_type>(index_type_window::get(*itr));
+      if( t != index_type::simple_struct_index && t != index_type::derived_struct_index )
+         EOS_ERROR(std::invalid_argument, "Iterator points to an entry that is not for a struct.");
+
+      ++itr;
+      const string& name = (lookup_by_name.begin() + index_window::get(*itr))->first;
+      ++itr;
+      ++itr;
+      
+      return {name, base_sort_window::get(*itr)};
+   }
+
+   range<vector<uint64_t>::const_iterator> 
+   full_types_manager::get_struct_fields_info(vector<uint32_t>::const_iterator itr)const
+   {
+      if( itr == valid_indices.end() || continuation_window::get(*itr) )
+         EOS_ERROR(std::invalid_argument, "Iterator does not point to the start of an entry within valid_indices.");
+
+      auto t = static_cast<index_type>(index_type_window::get(*itr));
+      if( t != index_type::simple_struct_index && t != index_type::derived_struct_index )
+         EOS_ERROR(std::invalid_argument, "Iterator points to an entry that is not for a struct.");
+
+      uint64_t fields_info_index = 0;
+      uint16_t num_fields = 0;
+
+      fields_info_index |= (static_cast<uint64_t>(three_bits_window::get(*itr)) << 37);
+
+      ++itr;
+      fields_info_index |= (static_cast<uint64_t>(seven_bits_window::get(*itr)) << 30);
+
+      ++itr;
+      fields_info_index |= (static_cast<uint64_t>(fifteen_bits_window::get(*itr)) << 15);
+      num_fields = field_size_window::get(*itr);
+
+      ++itr;
+      fields_info_index |= static_cast<uint64_t>(fifteen_bits_window::get(*itr));
+
+      return make_range(fields_info, fields_info_index, fields_info_index + num_fields);
+   }
+
+   std::ptrdiff_t full_types_manager::adjust_iterator(vector<uint32_t>::const_iterator& itr)const
+   {
+      std::ptrdiff_t seq = 0;
+
+      if( itr == valid_indices.end() )
+         return seq;
+
+      while( continuation_window::get(*itr) )
+      {
+         if( itr == valid_indices.begin() )
+            EOS_ERROR(std::runtime_error, "Invariant failure: valid_indices was not constructed properly.");
+         --itr;
+         --seq;
+      }
+      
+      return seq;
+   }
+
+   std::ptrdiff_t full_types_manager::advance_iterator(vector<uint32_t>::const_iterator& itr)const
+   {
+      std::ptrdiff_t step = 1;
+      switch( static_cast<index_type>(index_type_window::get(*itr)) )
+      {
+         case index_type::table_index:
+            step = 2;
+            break;
+         case index_type::simple_struct_index:
+         case index_type::derived_struct_index:
+            step = 4;
+            break;
+         default:
+            break;
+      }
+      std::advance(itr, step);
+      return step;
+   }
+
+   vector<uint32_t>::const_iterator full_types_manager::find_index(type_id::index_t index)const
+   {
+      auto first = valid_indices.begin();
+      auto itr   = valid_indices.end();
+      size_t step = 0;
+      size_t count = std::distance(first, itr);
+
+      while( count > 0 )
+      {
+         itr = first; 
+         step = count / 2;
+
+         std::advance(itr, step); 
+         step += adjust_iterator(itr);
+
+         if( index_window::get(*itr) < index )
+         {
+            count -= step + advance_iterator(itr);
+            first = itr; 
+         }
+         else
+            count = step;
+      }
+
+      if( index_window::get(*itr) == index )
+         return itr;
+      else
+         return valid_indices.end();
+   }
+
+#ifdef EOS_TYPES_FULL_CAPABILITY
+   
    struct print_type_visitor
    {
       const full_types_manager& tm;
@@ -310,7 +428,7 @@ namespace eos { namespace types {
                for( auto itr = begin; itr != end; ++info_itr, ++itr )
                {
                   if( info_itr == r2.end() )
-                     throw std::runtime_error("Invariant failure: get_struct_fields_info return range of unexpected size.");
+                     EOS_ERROR(std::runtime_error, "Invariant failure: get_struct_fields_info return range of unexpected size.");
 
                   auto field_length = field_names[fields_index_window::get(*info_itr)].size();
                   max_fieldname_length = std::max(max_fieldname_length, field_length);
@@ -346,128 +464,17 @@ namespace eos { namespace types {
             case index_type::tuple_index:
                break; // Tuple needs to be handled by the same code that handles other non-struct types.
             default:
-               throw std::invalid_argument("Struct or tuple does not exist with index specified in the given type.");
+               EOS_ERROR(std::invalid_argument, "Struct or tuple does not exist with index specified in the given type.");
          }
       }
       else if( !tid.is_void() && !is_type_valid(tid) )
-         throw std::logic_error("Type is not valid.");
+         EOS_ERROR(std::logic_error, "Type is not valid.");
 
       // Otherwise, print the non-struct type (includes tuples):
       traverse_type(tid, v);
    }
 
-   pair<const string&, int16_t> 
-   full_types_manager::get_struct_info(vector<uint32_t>::const_iterator itr)const
-   {
-      if( itr == valid_indices.end() || continuation_window::get(*itr) )
-         throw std::invalid_argument("Iterator does not point to the start of an entry within valid_indices.");
-
-      auto t = static_cast<index_type>(index_type_window::get(*itr));
-      if( t != index_type::simple_struct_index && t != index_type::derived_struct_index )
-         throw std::invalid_argument("Iterator points to an entry that is not for a struct.");
-
-      ++itr;
-      const string& name = (lookup_by_name.begin() + index_window::get(*itr))->first;
-      ++itr;
-      ++itr;
-      
-      return {name, base_sort_window::get(*itr)};
-   }
-
-   range<vector<uint64_t>::const_iterator> 
-   full_types_manager::get_struct_fields_info(vector<uint32_t>::const_iterator itr)const
-   {
-      if( itr == valid_indices.end() || continuation_window::get(*itr) )
-         throw std::invalid_argument("Iterator does not point to the start of an entry within valid_indices.");
-
-      auto t = static_cast<index_type>(index_type_window::get(*itr));
-      if( t != index_type::simple_struct_index && t != index_type::derived_struct_index )
-         throw std::invalid_argument("Iterator points to an entry that is not for a struct.");
-
-      uint64_t fields_info_index = 0;
-      uint16_t num_fields = 0;
-
-      fields_info_index |= (static_cast<uint64_t>(three_bits_window::get(*itr)) << 37);
-
-      ++itr;
-      fields_info_index |= (static_cast<uint64_t>(seven_bits_window::get(*itr)) << 30);
-
-      ++itr;
-      fields_info_index |= (static_cast<uint64_t>(fifteen_bits_window::get(*itr)) << 15);
-      num_fields = field_size_window::get(*itr);
-
-      ++itr;
-      fields_info_index |= static_cast<uint64_t>(fifteen_bits_window::get(*itr));
-
-      return make_range(fields_info, fields_info_index, fields_info_index + num_fields);
-   }
-
-   std::ptrdiff_t full_types_manager::adjust_iterator(vector<uint32_t>::const_iterator& itr)const
-   {
-      std::ptrdiff_t seq = 0;
-
-      if( itr == valid_indices.end() )
-         return seq;
-
-      while( continuation_window::get(*itr) )
-      {
-         if( itr == valid_indices.begin() )
-            throw std::runtime_error("Invariant failure: valid_indices was not constructed properly.");
-         --itr;
-         --seq;
-      }
-      
-      return seq;
-   }
-
-   std::ptrdiff_t full_types_manager::advance_iterator(vector<uint32_t>::const_iterator& itr)const
-   {
-      std::ptrdiff_t step = 1;
-      switch( static_cast<index_type>(index_type_window::get(*itr)) )
-      {
-         case index_type::table_index:
-            step = 2;
-            break;
-         case index_type::simple_struct_index:
-         case index_type::derived_struct_index:
-            step = 4;
-            break;
-         default:
-            break;
-      }
-      std::advance(itr, step);
-      return step;
-   }
-
-   vector<uint32_t>::const_iterator full_types_manager::find_index(type_id::index_t index)const
-   {
-      auto first = valid_indices.begin();
-      auto itr   = valid_indices.end();
-      size_t step = 0;
-      size_t count = std::distance(first, itr);
-
-      while( count > 0 )
-      {
-         itr = first; 
-         step = count / 2;
-
-         std::advance(itr, step); 
-         step += adjust_iterator(itr);
-
-         if( index_window::get(*itr) < index )
-         {
-            count -= step + advance_iterator(itr);
-            first = itr; 
-         }
-         else
-            count = step;
-      }
-
-      if( index_window::get(*itr) == index )
-         return itr;
-      else
-         return valid_indices.end();
-   }
+#endif
 
 } }
 

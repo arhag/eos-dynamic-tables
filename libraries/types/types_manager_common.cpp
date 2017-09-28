@@ -1,4 +1,5 @@
-#include <eos/types/types_manager_common.hpp>
+#include <eos/eoslib/types_manager_common.hpp>
+#include <eos/eoslib/exceptions.hpp>
 
 namespace eos { namespace types {
 
@@ -156,7 +157,7 @@ namespace eos { namespace types {
    types_manager_common::get_members_common(type_id::index_t struct_index)const
    {
       if( struct_index + 3 >= types.size() )
-         throw std::out_of_range("Struct index is not valid.");
+         EOS_ERROR(std::out_of_range, "Struct index is not valid.");
 
       auto itr = types.begin() + struct_index + 1;
       auto member_data_offset = *itr;
@@ -165,7 +166,7 @@ namespace eos { namespace types {
       uint16_t num_sorted_members = (*itr & 0xFFFF);
       
       if( (member_data_offset + num_sorted_members + total_num_members) > members.size() )
-         throw std::runtime_error("Invariant failure: range would be out of the bounds, most likely because struct_index was not valid.");
+         EOS_ERROR(std::runtime_error, "Invariant failure: range would be out of the bounds, most likely because struct_index was not valid.");
 
       return std::make_tuple(member_data_offset, num_sorted_members, total_num_members);
   }
@@ -182,15 +183,15 @@ namespace eos { namespace types {
    type_id types_manager_common::get_variant_case_type(type_id tid, uint16_t which)const
    { 
       if( tid.get_type_class() != type_id::variant_or_optional_type )
-         throw std::invalid_argument("Must provide a variant type to this function.");
+         EOS_ERROR(std::invalid_argument, "Must provide a variant type to this function.");
 
       auto itr = types.begin() + tid.get_type_index() + 1;
 
       if( *itr >= type_id::variant_case_limit )
-         throw std::invalid_argument("Provided type points to an optional, not a variant.");
+         EOS_ERROR(std::invalid_argument, "Provided type points to an optional, not a variant.");
 
       if( which >= *itr )
-         throw std::out_of_range("Case index specified by which is not valid");
+         EOS_ERROR(std::out_of_range, "Case index specified by which is not valid");
       
       itr += 1 + which;
 
@@ -200,14 +201,14 @@ namespace eos { namespace types {
    uint32_t types_manager_common::get_variant_tag_offset(type_id tid)const
    {
       if( tid.get_type_class() != type_id::variant_or_optional_type )
-         throw std::invalid_argument("Must provide a variant type to this function.");
+         EOS_ERROR(std::invalid_argument, "Must provide a variant type to this function.");
 
       auto itr = types.begin() + tid.get_type_index();
       type_id::size_align sa(*itr);
 
       ++itr;
       if( *itr >= type_id::variant_case_limit )
-         throw std::invalid_argument("Provided type points to an optional, not a variant.");
+         EOS_ERROR(std::invalid_argument, "Provided type points to an optional, not a variant.");
 
       return (sa.get_size() - 2);
    }
@@ -222,14 +223,14 @@ namespace eos { namespace types {
       }
 
       if( tc != type_id::variant_or_optional_type )
-         throw std::invalid_argument("Must provide a variant type to this function.");
+         EOS_ERROR(std::invalid_argument, "Must provide a variant type to this function.");
 
       auto itr = types.begin() + tid.get_type_index();
       type_id::size_align sa(*itr);
 
       ++itr;
       if( *itr < type_id::variant_case_limit )
-         throw std::invalid_argument("Provided type points to a variant, not an optional.");
+         EOS_ERROR(std::invalid_argument, "Provided type points to a variant, not an optional.");
 
       return (sa.get_size() - 1);
    }
@@ -238,7 +239,7 @@ namespace eos { namespace types {
    types_manager_common::get_base_info(type_id::index_t struct_index)const
    {
       if( struct_index + 3 >= types.size() )
-         throw std::out_of_range("Struct index is not valid.");
+         EOS_ERROR(std::out_of_range, "Struct index is not valid.");
 
       auto itr = types.begin() + struct_index + 3;
       field_metadata::sort_order base_sort_order = ( !sorted_window::get(*itr) ? field_metadata::unsorted 
@@ -280,17 +281,17 @@ namespace eos { namespace types {
                type_id element_tid(*itr);
                return {element_tid, 1};
             }
-            throw std::invalid_argument("Given type is not a container.");
+            EOS_ERROR(std::invalid_argument, "Given type is not a container.");
          }
          case type_id::builtin_type:
          {
             auto b = tid.get_builtin_type();
             if( b == type_id::builtin_string || b == type_id::builtin_bytes )
                return {type_id(type_id::builtin_uint8), 0};
-            throw std::invalid_argument("Given type is not a container.");
+            EOS_ERROR(std::invalid_argument, "Given type is not a container.");
          }
          case type_id::struct_type:
-            throw std::invalid_argument("Given type is not a container.");
+            EOS_ERROR(std::invalid_argument, "Given type is not a container.");
       }
 
       return {tid.get_element_type(), num_elements};
@@ -299,7 +300,7 @@ namespace eos { namespace types {
    uint8_t  types_manager_common::get_num_indices_in_table(type_id::index_t index)const
    {
       if( index + 3 > types.size() )
-         throw std::invalid_argument("Table index is not valid.");
+         EOS_ERROR(std::invalid_argument, "Table index is not valid.");
  
       auto itr = types.begin() + index;
       return index_seq_window::get(*itr);
@@ -308,7 +309,7 @@ namespace eos { namespace types {
    type_id::index_t types_manager_common::get_struct_index_of_table_object(type_id::index_t index)const
    {
       if( index + 3 > types.size() )
-         throw std::invalid_argument("Table index is not valid.");
+         EOS_ERROR(std::invalid_argument, "Table index is not valid.");
       
       auto itr = types.begin() + index;
       return index_window::get(*itr);
@@ -323,11 +324,11 @@ namespace eos { namespace types {
       : tm(tm)
    {
       if( index + 1 + 2*(index_seq_num+1) > tm.types.size() )
-         throw std::invalid_argument("Table index is not valid.");
+         EOS_ERROR(std::invalid_argument, "Table index is not valid.");
 
       auto itr = tm.types.begin() + index;
       if( index_seq_window::get(*itr) <= index_seq_num )
-         throw std::out_of_range("Index sequence number if outside the range of valid sequence numbers for this table.");
+         EOS_ERROR(std::out_of_range, "Index sequence number if outside the range of valid sequence numbers for this table.");
 
       itr = tm.types.begin() + index + 1 + 2*index_seq_num;
 
@@ -640,7 +641,8 @@ namespace eos { namespace types {
      
       traversal_shortcut operator()() 
       {
-         throw std::runtime_error("Invariant failure: Void type should not be allowed in structs or table keys.");
+         EOS_ERROR(std::runtime_error, "Invariant failure: Void type should not be allowed in structs or table keys.");
+         return types_manager_common::no_shortcut; // Should never be reached. Just here to silence compiler warning.
       }
    };
 
@@ -654,19 +656,19 @@ namespace eos { namespace types {
          auto f = *(object_range.begin());
 
          if( f.get_type_id() != key_type )
-            throw std::runtime_error("Invariant failure: key type of index does not match the type of the view into the object.");
+            EOS_ERROR(std::runtime_error, "Invariant failure: key type of index does not match the type of the view into the object.");
 
          compare_visitor v(*this, object_data, f.get_offset(), key_data, 0, f.get_sort_order() == field_metadata::ascending);
          traverse_type( key_type, v);
          return (ti.is_ascending() ? v.comparison_result : -v.comparison_result);
       }
       else if(tc != type_id::struct_type )
-         throw std::runtime_error("Invariant failure: key type of index is not builtin type or struct.");
+         EOS_ERROR(std::runtime_error, "Invariant failure: key type of index is not builtin type or struct.");
 
       auto key_range = ti.get_types_manager().get_sorted_members(key_type.get_type_index());
       auto num_sorted_members = key_range.end() - key_range.begin();
       if( num_sorted_members != (object_range.end() - object_range.begin()) )
-         throw std::runtime_error("Invariant failure: Number of sorted members of key and key-shaped view into the object are not the same.");
+         EOS_ERROR(std::runtime_error, "Invariant failure: Number of sorted members of key and key-shaped view into the object are not the same.");
 
       for( auto i = 0; i < num_sorted_members; ++i )
       {
@@ -680,7 +682,7 @@ namespace eos { namespace types {
          f_key.set_offset(0);
 
          if( f != f_key )
-            throw std::runtime_error("Invariant failure: key and key-shaped view into the object are structs with different member metadata.");
+            EOS_ERROR(std::runtime_error, "Invariant failure: key and key-shaped view into the object are structs with different member metadata.");
 
          compare_visitor v(*this, object_data, f_offset, key_data, f_key_offset, f.get_sort_order() == field_metadata::ascending);
          traverse_type(f.get_type_id(), v);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <eos/types/types_manager_common.hpp>
+#include <eos/eoslib/types_manager_common.hpp>
 
 #include <string>
 #include <boost/container/flat_map.hpp>
@@ -28,7 +28,7 @@ namespace eos { namespace types {
       {
       }
       
-      type_id::index_t                                   get_table(const string& name)const;
+      type_id::index_t get_table(const string& name)const;
 
       friend class types_constructor;
 

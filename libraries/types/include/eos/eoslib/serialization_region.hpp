@@ -1,14 +1,18 @@
 #pragma once
 
-#include <eos/types/reflect.hpp>
-#include <eos/types/raw_region.hpp>
-#include <eos/types/full_types_manager.hpp>
-#include <eos/types/deserialize_visitor.hpp>
-
-#include <type_traits>
-#include <stdexcept>
+#include <eos/eoslib/reflect_basic.hpp>
+#include <eos/eoslib/raw_region.hpp>
+#include <eos/eoslib/full_types_manager.hpp>
+#include <eos/eoslib/deserialize_visitor.hpp>
+#include <eos/eoslib/exceptions.hpp>
+#include <eos/eoslib/type_traits.hpp>
 
 namespace eos { namespace types {
+
+   using eoslib::is_integral;
+   using eoslib::is_same; 
+   using eoslib::enable_if;
+   using eoslib::remove_cv;
 
    class serialization_region
    {
@@ -33,21 +37,21 @@ namespace eos { namespace types {
          {}
  
          template<typename B>
-         typename std::enable_if<std::is_integral<B>::value && !std::is_same<B, bool>::value>::type
+         typename enable_if<is_integral<B>::value && !is_same<B, bool>::value>::type
          operator()(const B& b)const
          {
             if( tid.get_builtin_type() != eos::types::reflector<B>::builtin_type )
-               throw std::runtime_error("Type mismatch");
+               EOS_ERROR(std::runtime_error, "Type mismatch");
 
             r.set<B>(offset, b);
          }
 
          template<typename B>
-         typename std::enable_if<std::is_same<B, bool>::value>::type
+         typename enable_if<is_same<B, bool>::value>::type
          operator()(const B& b)const
          {
             if( tid.get_builtin_type() != eos::types::reflector<B>::builtin_type )
-               throw std::runtime_error("Type mismatch");
+               EOS_ERROR(std::runtime_error, "Type mismatch");
 
             r.set<bool>(offset, b); // In this case, offset is in bits.
          }
@@ -58,12 +62,12 @@ namespace eos { namespace types {
 
 #define EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( builtin_name )                                                              \
          template<typename B>                                                                                             \
-         typename std::enable_if<eos::types::reflector<B>::is_builtin::value && !std::is_integral<B>::value               \
+         typename enable_if<eos::types::reflector<B>::is_builtin::value && !is_integral<B>::value                         \
                                  && eos::types::reflector<B>::builtin_type == type_id::builtin_ ## builtin_name >::type   \
          operator()(const B& b)const                                                                                      \
          {                                                                                                                \
             if( tid.get_builtin_type() != eos::types::reflector<B>::builtin_type )                                        \
-               throw std::runtime_error("Type mismatch");                                                                 \
+               EOS_ERROR(std::runtime_error, "Type mismatch");                                                            \
 
 #define EOS_TYPES_CUSTOM_BUILTIN_MATCH_END                                                                                \
          }
@@ -89,7 +93,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
 
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( bytes )
    write_vector(b);
-//   throw std::logic_error("Bytes should be represented in C++ by a vector of uint8_t.");
+//   EOS_ERROR(std::logic_error, "Bytes should be represented in C++ by a vector of uint8_t.");
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
 
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( rational )
@@ -98,11 +102,11 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( rational )
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
 
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_START( any )
-   throw std::runtime_error("Not implemented");
+   EOS_ERROR(std::runtime_error, "Not implemented");
 EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
    
          template<class Class, class Base>
-         typename std::enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Base>::is_struct::value>::type
+         typename enable_if<eos::types::reflector<Class>::is_struct::value && eos::types::reflector<Base>::is_struct::value>::type
          operator()(const Base& b)const
          {
             auto base_tid = tm.get_member(tid.get_type_index(), 0).get_type_id();
@@ -129,7 +133,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          }
 
          template<typename Member, class Class, Member (Class::*member)>
-         typename std::enable_if<eos::types::reflector<Class>::is_struct::value>::type
+         typename enable_if<eos::types::reflector<Class>::is_struct::value>::type
          operator()(const Class& c, const char* name, uint32_t member_index)const
          {
             auto vis = make_visitor_for_product_type_member(member_index);
@@ -137,7 +141,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          }
          
          template<typename Member, class Class, size_t Index> // Meant for tuples/pairs
-         typename std::enable_if<eos::types::reflector<Class>::is_tuple::value>::type
+         typename enable_if<eos::types::reflector<Class>::is_tuple::value>::type
          operator()(const Class& c)const
          {
             auto vis = make_visitor_for_product_type_member(static_cast<uint32_t>(Index));
@@ -145,16 +149,16 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          }
  
          template<class Container>
-         typename std::enable_if<eos::types::reflector<Container>::is_array::value>::type
+         typename enable_if<eos::types::reflector<Container>::is_array::value>::type
          operator()(const Container& c)const
          {
             type_id element_tid;
             uint32_t num_elements;
             std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
             if( num_elements < 2 )
-               throw std::runtime_error("Type mismatch");
+               EOS_ERROR(std::runtime_error, "Type mismatch");
             if( num_elements != c.size() )
-               throw std::runtime_error("Mismatch in number of elements of array");
+               EOS_ERROR(std::runtime_error, "Mismatch in number of elements of array");
 
             auto stride = tm.get_size_align(element_tid).get_stride();
 
@@ -173,7 +177,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
             uint32_t num_elements;
             std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
             if( num_elements != 0 )
-               throw std::runtime_error("Type mismatch");
+               EOS_ERROR(std::runtime_error, "Type mismatch");
             num_elements = c.size();
             if( num_elements == 0 )
                return;
@@ -192,7 +196,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
             for( uint32_t i = 0; i < num_elements; ++i, ++itr )
             {
                if( itr == c.end() )
-                  throw std::runtime_error("Unexpected end of vector.");
+                  EOS_ERROR(std::runtime_error, "Unexpected end of vector.");
 
                eos::types::reflector<typename Container::value_type>::visit(*itr, vis);
                vis.offset += stride;
@@ -200,21 +204,21 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          }
 
          template<class Container>
-         typename std::enable_if<eos::types::reflector<Container>::is_vector::value>::type
+         typename enable_if<eos::types::reflector<Container>::is_vector::value>::type
          operator()(const Container& c)const
          {
             write_vector(c);
          }
 
          template<class Container>
-         typename std::enable_if<eos::types::reflector<Container>::is_optional::value>::type
+         typename enable_if<eos::types::reflector<Container>::is_optional::value>::type
          operator()(const Container& c)const
          {
             type_id element_tid;
             uint32_t num_elements;
             std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
             if( num_elements != 1 )
-               throw std::runtime_error("Type mismatch");
+               EOS_ERROR(std::runtime_error, "Type mismatch");
 
             if( !static_cast<bool>(c) )
                return; // Since region is zero initialized, it would be redundant to set optional tag to false.
@@ -229,10 +233,10 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
       };
 
       template<typename T>
-      typename std::enable_if<eos::types::reflector<typename std::remove_cv<T>::type>::is_defined::value, uint32_t>::type
+      typename enable_if<eos::types::reflector<typename remove_cv<T>::type>::is_defined::value, uint32_t>::type
       write_type(const T& type, type_id tid)
       {
-         using PlainT = typename std::remove_cv<T>::type;
+         using PlainT = typename remove_cv<T>::type;
          auto sa = tm.get_size_align(tid);
          auto starting_offset = type_id::round_up_to_alignment(raw_data.offset_end(), sa.get_align());
          raw_data.extend(starting_offset + sa.get_size());
@@ -242,15 +246,15 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
       }
 
       template<typename T>
-      typename std::enable_if<eos::types::reflector<typename std::remove_cv<T>::type>::is_defined::value>::type
+      typename enable_if<eos::types::reflector<typename remove_cv<T>::type>::is_defined::value>::type
       read_type(T& type, type_id tid, uint32_t offset = 0)
       {
-         using PlainT = typename std::remove_cv<T>::type;
+         using PlainT = typename remove_cv<T>::type;
          auto sa = tm.get_size_align(tid);
          if( offset != type_id::round_up_to_alignment(offset, sa.get_align()) )
-            throw std::logic_error("Offset not at appropriate alignment required by the struct.");
+            EOS_ERROR(std::logic_error, "Offset not at appropriate alignment required by the struct.");
          if( raw_data.offset_end() < offset + sa.get_size() )
-            throw std::logic_error("Raw data is too small to possibly contain the struct at the specified offset.");
+            EOS_ERROR(std::logic_error, "Raw data is too small to possibly contain the struct at the specified offset.");
          deserialize_visitor vis(tm, raw_data, tid, offset);
          eos::types::reflector<PlainT>::visit(type, vis);
       }

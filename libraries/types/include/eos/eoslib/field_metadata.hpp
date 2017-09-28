@@ -1,9 +1,11 @@
 #pragma once
 
-#include <eos/types/bit_view.hpp>
-#include <eos/types/type_id.hpp>
+#include <eos/eoslib/bit_view.hpp>
+#include <eos/eoslib/type_id.hpp>
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
 #include <iosfwd>
+#endif
 
 namespace eos { namespace types {
 
@@ -103,7 +105,9 @@ namespace eos { namespace types {
       friend inline bool operator==(field_metadata lhs, field_metadata rhs) { return (lhs._tid == rhs._tid) && (lhs._extra == rhs._extra); }
       friend inline bool operator!=(field_metadata lhs, field_metadata rhs) { return (lhs._tid != rhs._tid) || (lhs._extra != rhs._extra); }
 
+#ifdef EOS_TYPES_FULL_CAPABILITY
       friend std::ostream& operator<<(std::ostream& os, const field_metadata&);
+#endif
 
    };
 

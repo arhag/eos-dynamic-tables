@@ -1,7 +1,7 @@
 #pragma once
 
-#include <eos/types/field_metadata.hpp>
-#include <eos/types/raw_region.hpp>
+#include <eos/eoslib/field_metadata.hpp>
+#include <eos/eoslib/raw_region.hpp>
 
 #include <utility>
 #include <tuple>

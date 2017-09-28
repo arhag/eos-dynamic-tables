@@ -1,18 +1,14 @@
 #pragma once
 
-#include <eos/types/raw_region.hpp>
+#include <eos/eoslib/reflect_basic.hpp>
+#include <eos/eoslib/raw_region.hpp>
+#include <eos/eoslib/type_id.hpp>
 #include <eos/types/abi_constructor.hpp>
-#include <eos/types/type_id.hpp>
 
 #include <type_traits>
-#include <stdexcept>
-#include <array>
 #include <iterator>
 #include <utility>
 #include <vector>
-#include <tuple>
-#include <string>
-#include <typeinfo>
 #include <boost/optional.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/preprocessor/facilities/overload.hpp>
@@ -24,16 +20,13 @@
 #include <boost/preprocessor/seq/size.hpp>
 #include <boost/preprocessor/seq/seq.hpp>
 #include <boost/preprocessor/tuple/elem.hpp>
-#include <boost/preprocessor/repetition/repeat.hpp>
-#include <boost/preprocessor/repetition/repeat_from_to.hpp>
+//#include <boost/preprocessor/repetition/repeat.hpp>
+//#include <boost/preprocessor/repetition/repeat_from_to.hpp>
 
-#ifndef _MSC_VER
-  #define TEMPLATE template
-#else
-  // Disable warning C4482: nonstandard extention used: enum 'enum_type::enum_value' used in qualified name
-  #pragma warning( disable: 4482 )
-  #define TEMPLATE
-#endif
+#undef EOS_TYPES_REFLECT_STRUCT
+#undef EOS_TYPES_REFLECT_STRUCT_DERIVED
+#undef EOS_TYPES_CREATE_TABLE
+#undef EOS_TYPES_REGISTER_TYPES
 
 #define EOS_TYPES_REFLECT_GET_MEMBER_TYPE(structure, member) decltype((static_cast<structure*>(nullptr))->member)
 
@@ -267,125 +260,6 @@ EOS_TYPES_REFLECT_STRUCT_DERIVED_END(T, B, fields)                              
    BOOST_PP_CAT(BOOST_PP_OVERLOAD(EOS_TYPES_REFLECT_STRUCT_DERIVED_,__VA_ARGS__)(__VA_ARGS__),BOOST_PP_EMPTY())
 #endif
 
-#define EOS_TYPES_REFLECT_TEMPLATE_ARG(r, index, data) , data T##index
-
-#define EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT( r, index, data )                                              \
-         _v.TEMPLATE operator()<data##index, type, index>( _s );
-
-#define EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT_TYPE( r, index, data )                                         \
-         _v.TEMPLATE operator()<data##index, type, index>();
-
-#define EOS_TYPES_REFLECT_TUPLE(C, num_template_args)                                                        \
-namespace eos { namespace types {                                                                            \
-   template<typename T0                                                                                      \
-            BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, typename)>         \
-   struct reflector<C<T0                                                                                     \
-                      BOOST_PP_REPEAT_FROM_TO(1, num_template_args, EOS_TYPES_REFLECT_TEMPLATE_ARG, )>>      \
-   {                                                                                                         \
-      using is_defined      = std::true_type;                                                                \
-      using is_product_type = std::true_type;                                                                \
-      using is_struct       = std::false_type;                                                               \
-      using is_tuple        = std::true_type;                                                                \
-      using type            = C<T0 BOOST_PP_REPEAT_FROM_TO(1, num_template_args,                             \
-                                                           EOS_TYPES_REFLECT_TEMPLATE_ARG, )>;               \
-      enum  field_count_enum {                                                                               \
-         field_count = num_template_args                                                                     \
-      };                                                                                                     \
-      enum sorted_member_count_enum {                                                                        \
-         sorted_member_count = num_template_args                                                             \
-      };                                                                                                     \
-      template<typename Visitor>                                                                             \
-      static void visit(Visitor& _v)                                                                         \
-      {                                                                                                      \
-         BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT_TYPE, T)                   \
-         _v.TEMPLATE operator()<type>();                                                                     \
-      }                                                                                                      \
-      template<typename Visitor>                                                                             \
-      static void visit(const type& _s, const Visitor& _v)                                                   \
-      {                                                                                                      \
-         BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT, T)                        \
-      }                                                                                                      \
-      template<typename Visitor>                                                                             \
-      static void visit(type& _s, const Visitor& _v)                                                         \
-      {                                                                                                      \
-         BOOST_PP_REPEAT(num_template_args, EOS_TYPES_REFLECT_VISIT_TUPLE_ELEMENT, T)                        \
-      }                                                                                                      \
-   };                                                                                                        \
-} }
-
-#define EOS_TYPES_REFLECT_SIMPLE_VISIT                         \
-      template<typename Visitor>                               \
-      static void visit(Visitor& _v)                           \
-      {                                                        \
-         _v.TEMPLATE operator()<type>();                       \
-      }                                                        \
-      template<typename Visitor>                               \
-      static void visit(const type& _x, const Visitor& _v)     \
-      {                                                        \
-         _v.TEMPLATE operator()<type>(_x);                     \
-      }                                                        \
-      template<typename Visitor>                               \
-      static void visit(type& _x, const Visitor& _v)           \
-      {                                                        \
-         _v.TEMPLATE operator()<type>(_x);                     \
-      }                                                        \
-
-#define EOS_TYPES_REFLECT_BUILTIN(T, B)                        \
-namespace eos { namespace types {                              \
-   template <>                                                 \
-   struct reflector<T>                                         \
-   {                                                           \
-      using is_defined      = std::true_type;                  \
-      using is_struct       = std::false_type;                 \
-      using is_builtin      = std::true_type;                  \
-      using type            = T;                               \
-      static const type_id::builtin builtin_type = type_id::B; \
-      EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
-   };                                                          \
-} }
-
-#define EOS_TYPES_REFLECT_ARRAY(C)                             \
-namespace eos { namespace types {                              \
-   template<typename T, size_t N>                              \
-   struct reflector<C<T, N>>                                   \
-   {                                                           \
-      using is_defined       = std::true_type;                 \
-      using is_struct        = std::false_type;                \
-      using is_array         = std::true_type;                 \
-      using type             = C<T, N>;                        \
-      enum  num_elements_enum {                                \
-         num_elements = N                                      \
-      };                                                       \
-      EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
-   };                                                          \
-} }
-
-#define EOS_TYPES_REFLECT_VECTOR(C)                            \
-namespace eos { namespace types {                              \
-   template<typename T>                                        \
-   struct reflector<C<T>>                                      \
-   {                                                           \
-      using is_defined       = std::true_type;                 \
-      using is_struct        = std::false_type;                \
-      using is_vector        = std::true_type;                 \
-      using type             = C<T>;                           \
-      EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
-   };                                                          \
-} }
-
-#define EOS_TYPES_REFLECT_OPTIONAL(C)                          \
-namespace eos { namespace types {                              \
-   template<typename T>                                        \
-   struct reflector<C<T>>                                      \
-   {                                                           \
-      using is_defined      = std::true_type;                  \
-      using is_struct       = std::false_type;                 \
-      using is_optional     = std::true_type;                  \
-      using type            = C<T>;                            \
-      EOS_TYPES_REFLECT_SIMPLE_VISIT                           \
-   };                                                          \
-} }
-
 #define EOS_TYPES_REFLECT_INDEX_TYPE_u_asc true, true
 #define EOS_TYPES_REFLECT_INDEX_TYPE_u_desc true, false
 #define EOS_TYPES_REFLECT_INDEX_TYPE_nu_asc false, true
@@ -456,73 +330,11 @@ namespace eos { namespace types {                                               
 
 
 namespace eos { namespace types {
-   template<typename T>
-   struct reflector
-   {
-      using is_defined = std::false_type;
-   };
-
-   template<typename T>
-   struct table_reflector
-   {
-      using is_defined = std::false_type;
-   };
-
-   template<typename T>
-   struct types_initializer
-   {
-   };
-
-   struct rational
-   {
-      rational()
-         : numerator(0), denominator(1)
-      {}
-
-      rational(int64_t n, uint64_t d)
-         : numerator(n), denominator(d)
-      {}
-
-      int64_t  numerator;
-      uint64_t denominator;
-   };
 
    uint32_t register_struct(abi_constructor& ac, const std::vector<type_id>& field_types, const char* struct_name, 
                             const char* const field_names[], uint32_t field_names_length,
                             const char* const sorted_member_names[], bool const sorted_member_dir[], uint32_t sorted_member_count,
                             const char* base_name = nullptr);
-
-} }
-
-
-EOS_TYPES_REFLECT_BUILTIN(bool,     builtin_bool)
-EOS_TYPES_REFLECT_BUILTIN(char,     builtin_uint8)
-EOS_TYPES_REFLECT_BUILTIN(int8_t,   builtin_int8)
-EOS_TYPES_REFLECT_BUILTIN(uint8_t,  builtin_uint8)
-EOS_TYPES_REFLECT_BUILTIN(int16_t,  builtin_int16)
-EOS_TYPES_REFLECT_BUILTIN(uint16_t, builtin_uint16)
-EOS_TYPES_REFLECT_BUILTIN(int32_t,  builtin_int32)
-EOS_TYPES_REFLECT_BUILTIN(uint32_t, builtin_uint32)
-EOS_TYPES_REFLECT_BUILTIN(int64_t,  builtin_int64)
-EOS_TYPES_REFLECT_BUILTIN(uint64_t, builtin_uint64)
-EOS_TYPES_REFLECT_BUILTIN(std::string, builtin_string)
-EOS_TYPES_REFLECT_BUILTIN(std::vector<uint8_t>, builtin_bytes)
-EOS_TYPES_REFLECT_BUILTIN(eos::types::rational, builtin_rational)
-EOS_TYPES_REFLECT_BUILTIN(eos::types::type_id, builtin_uint32)
-
-EOS_TYPES_REFLECT_ARRAY(std::array)
-EOS_TYPES_REFLECT_VECTOR(std::vector)
-EOS_TYPES_REFLECT_OPTIONAL(boost::optional)
-
-EOS_TYPES_REFLECT_TUPLE(std::pair, 2)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 2)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 3)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 4)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 5)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 6)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 7)
-
-namespace eos { namespace types {
 
    using std::vector;
    using std::pair;

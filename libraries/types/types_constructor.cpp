@@ -1,6 +1,6 @@
 #include <eos/types/types_constructor.hpp>
-#include <eos/types/bit_view.hpp>
-#include <eos/types/types_manager_common.hpp>
+#include <eos/eoslib/bit_view.hpp>
+#include <eos/eoslib/types_manager_common.hpp>
 
 #include <stdexcept>
 #include <algorithm>
