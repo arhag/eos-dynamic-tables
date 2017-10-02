@@ -42,7 +42,7 @@ namespace eos { namespace types {
          eos::types::reflector<PlainT>::visit(type, vis);
       }
 
-      inline const vector<byte>& get_raw_data()const { return raw_data.get_raw_data(); }
+      inline const Vector<byte>& get_raw_data()const { return raw_data.get_raw_data(); }
 
    private:
       const full_types_manager& tm;

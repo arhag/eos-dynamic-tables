@@ -152,9 +152,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          typename enable_if<eos::types::reflector<Container>::is_array::value>::type
          operator()(const Container& c)const
          {
-            type_id element_tid;
-            uint32_t num_elements;
-            std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
+            auto res = tm.get_container_element_type(tid);
+            type_id element_tid = res.first;
+            uint32_t num_elements = res.second;
             if( num_elements < 2 )
                EOS_ERROR(std::runtime_error, "Type mismatch");
             if( num_elements != c.size() )
@@ -173,9 +173,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          template<class Container>
          void write_vector(const Container& c, bool write_zero_at_end = false)const
          {
-            type_id element_tid;
-            uint32_t num_elements;
-            std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
+            auto res = tm.get_container_element_type(tid);
+            type_id element_tid = res.first;
+            uint32_t num_elements = res.second;
             if( num_elements != 0 )
                EOS_ERROR(std::runtime_error, "Type mismatch");
             num_elements = c.size();
@@ -214,9 +214,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          typename enable_if<eos::types::reflector<Container>::is_optional::value>::type
          operator()(const Container& c)const
          {
-            type_id element_tid;
-            uint32_t num_elements;
-            std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
+            auto res = tm.get_container_element_type(tid);
+            type_id element_tid = res.first;
+            uint32_t num_elements = res.second;
             if( num_elements != 1 )
                EOS_ERROR(std::runtime_error, "Type mismatch");
 
@@ -259,11 +259,11 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          eos::types::reflector<PlainT>::visit(type, vis);
       }
 
-      inline const vector<byte>& get_raw_data()const { return raw_data.get_raw_data(); }
+      inline const Vector<byte>& get_raw_data()const { return raw_data.get_raw_data(); }
 
       inline const raw_region& get_raw_region()const { return raw_data; }
 
-      inline raw_region move_raw_region() { return std::move(raw_data); }
+      inline raw_region move_raw_region() { return eoslib::move(raw_data); }
 
       inline void clear() { raw_data.clear(); }
 

@@ -9,6 +9,7 @@
 #include <iterator>
 #include <utility>
 #include <vector>
+#include <array>
 #include <boost/optional.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/preprocessor/facilities/overload.hpp>
@@ -27,6 +28,19 @@
 #undef EOS_TYPES_REFLECT_STRUCT_DERIVED
 #undef EOS_TYPES_CREATE_TABLE
 #undef EOS_TYPES_REGISTER_TYPES
+
+
+EOS_TYPES_REFLECT_BUILTIN(std::vector<uint8_t>, builtin_bytes)
+EOS_TYPES_REFLECT_ARRAY(std::array)
+EOS_TYPES_REFLECT_VECTOR(std::vector)
+EOS_TYPES_REFLECT_TUPLE(std::pair, 2)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 2)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 3)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 4)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 5)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 6)
+EOS_TYPES_REFLECT_TUPLE(std::tuple, 7)
+
 
 #define EOS_TYPES_REFLECT_GET_MEMBER_TYPE(structure, member) decltype((static_cast<structure*>(nullptr))->member)
 

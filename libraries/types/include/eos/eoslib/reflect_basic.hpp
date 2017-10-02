@@ -2,11 +2,11 @@
 
 #include <eos/eoslib/type_id.hpp>
 #include <eos/eoslib/type_traits.hpp>
+#include <eos/eoslib/vector.hpp>
+#include <eos/eoslib/array.hpp>
+#include <eos/eoslib/utility.hpp>
 
 #include <string>
-#include <array>
-#include <vector>
-#include <utility>
 #include <tuple>   
 
 using eoslib::true_type;
@@ -310,26 +310,25 @@ EOS_TYPES_REFLECT_BUILTIN(uint32_t, builtin_uint32)
 EOS_TYPES_REFLECT_BUILTIN(int64_t,  builtin_int64)
 EOS_TYPES_REFLECT_BUILTIN(uint64_t, builtin_uint64)
 EOS_TYPES_REFLECT_BUILTIN(std::string, builtin_string)
-EOS_TYPES_REFLECT_BUILTIN(std::vector<uint8_t>, builtin_bytes)
+EOS_TYPES_REFLECT_BUILTIN(eoslib::vector<uint8_t>, builtin_bytes)
 EOS_TYPES_REFLECT_BUILTIN(eos::types::rational, builtin_rational)
 EOS_TYPES_REFLECT_BUILTIN(eos::types::type_id, builtin_uint32)
 
-EOS_TYPES_REFLECT_ARRAY(std::array)
-EOS_TYPES_REFLECT_VECTOR(std::vector)
+EOS_TYPES_REFLECT_ARRAY(eoslib::array)
+EOS_TYPES_REFLECT_VECTOR(eoslib::vector)
 //EOS_TYPES_REFLECT_OPTIONAL(boost::optional)
 
-EOS_TYPES_REFLECT_TUPLE(std::pair, 2)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 2)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 3)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 4)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 5)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 6)
-EOS_TYPES_REFLECT_TUPLE(std::tuple, 7)
-
+EOS_TYPES_REFLECT_TUPLE(eoslib::pair, 2)
 
 #define EOS_TYPES_REFLECT_STRUCT(...)
 #define EOS_TYPES_REFLECT_STRUCT_DERIVED(...)
 #define EOS_TYPES_CREATE_TABLE(...)
 #define EOS_TYPES_REGISTER_TYPES(...) 
 
+namespace eos { namespace types {
+
+   template <typename T> using Vector = eoslib::vector<T>;
+   template <typename T, size_t N> using Array = eoslib::array<T,N>;
+
+} }
 

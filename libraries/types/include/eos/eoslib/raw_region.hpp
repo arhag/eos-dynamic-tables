@@ -3,8 +3,8 @@
 #include <eos/eoslib/types.h>
 #include <eos/eoslib/type_traits.hpp>
 #include <eos/eoslib/exceptions.hpp>
+#include <eos/eoslib/vector.hpp>
 
-#include <vector>
 #ifdef EOS_TYPES_FULL_CAPABILITY
 #include <iosfwd>
 #endif
@@ -13,11 +13,12 @@ namespace eos { namespace types {
 
    using byte = unsigned char;
 
-   using std::vector;
-
    using eoslib::is_integral;
    using eoslib::is_same;
    using eoslib::enable_if;
+   using eoslib::move;
+
+   template <typename T> using Vector = eoslib::vector<T>;
 
    class raw_region
    {
@@ -31,19 +32,19 @@ namespace eos { namespace types {
       raw_region& operator=(const raw_region& other) = default;
 
       raw_region(raw_region&& other)
-         : raw_data(std::move(other.raw_data))
+         : raw_data(move(other.raw_data))
       {
          other.raw_data.clear();
       }
 
       raw_region& operator=(raw_region&& other)
       {
-         raw_data = std::move(other.raw_data);
+         raw_data = move(other.raw_data);
          other.raw_data.clear();
          return *this;
       }
 
-      inline const vector<byte>& get_raw_data()const { return raw_data; }
+      inline const Vector<byte>& get_raw_data()const { return raw_data; }
 
       inline uint32_t capacity()const   { return raw_data.capacity(); }
       inline uint32_t offset_end()const { return raw_data.size(); }
@@ -123,7 +124,7 @@ namespace eos { namespace types {
 #endif
 
    private:
-      vector<byte> raw_data;
+      Vector<byte> raw_data;
    };
 
 } }

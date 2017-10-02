@@ -139,9 +139,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
       typename enable_if<eos::types::reflector<Container>::is_array::value>::type
       operator()(Container& c)const
       {
-         type_id element_tid;
-         uint32_t num_elements;
-         std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
+         auto res = tm.get_container_element_type(tid);
+         type_id element_tid = res.first;
+         uint32_t num_elements = res.second;
          if( num_elements < 2 )
             EOS_ERROR(std::runtime_error, "Type mismatch");
          if( num_elements != c.size() )
@@ -163,9 +163,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          if( c.size() != 0 )
             EOS_ERROR(std::runtime_error, "Expected vector to construct to be initially empty.");
 
-         type_id element_tid;
-         uint32_t num_elements;
-         std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
+         auto res = tm.get_container_element_type(tid);
+         type_id element_tid = res.first;
+         uint32_t num_elements = res.second;
          if( num_elements != 0 )
             EOS_ERROR(std::runtime_error, "Type mismatch");
 
@@ -183,15 +183,15 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          if( (vector_data_offset + (num_elements * stride)) > r.offset_end() )
             EOS_ERROR(std::logic_error, "Raw region is too small to contain this type.");
 
-         deserialize_visitor vis(tm, r, element_tid, vector_data_offset); 
-         auto itr = std::inserter(c, c.end());
+         deserialize_visitor vis(tm, r, element_tid, vector_data_offset);
+         c.clear(); 
          if( extra_zero_at_end )
             --num_elements;
          for( uint32_t i = 0; i < num_elements; ++i )
          {
             typename Container::value_type x;
             eos::types::reflector<typename Container::value_type>::visit(x, vis);
-            itr = std::move(x);
+            c.push_back(eoslib::move(x));
             vis.offset += stride;
          }
       }
@@ -207,9 +207,9 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
       typename enable_if<eos::types::reflector<Container>::is_optional::value>::type
       operator()(Container& c)const
       {
-         type_id element_tid;
-         uint32_t num_elements;
-         std::tie(element_tid, num_elements) = tm.get_container_element_type(tid);
+         auto res = tm.get_container_element_type(tid);
+         type_id element_tid = res.first;
+         uint32_t num_elements = res.second;
          if( num_elements != 1 )
             EOS_ERROR(std::runtime_error, "Type mismatch");
 
@@ -223,7 +223,7 @@ EOS_TYPES_CUSTOM_BUILTIN_MATCH_END
          typename Container::value_type x;
          deserialize_visitor vis(tm, r, element_tid, offset); 
          eos::types::reflector<typename Container::value_type>::visit(x, vis);
-         c = std::move(x);
+         c = eoslib::move(x);
       }
 
    };

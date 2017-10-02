@@ -1,7 +1,7 @@
 
 file(GLOB HEADERS  "${CMAKE_CURRENT_SOURCE_DIR}/include/eos/table/*.hpp")
 
-add_definitions(-DBOOST_PP_VARIADICS)
+add_definitions(-DBOOST_PP_VARIADICS -DEOS_TYPES_FULL_CAPABILITY)
 
 add_library( eos_table
              dynamic_object.cpp 

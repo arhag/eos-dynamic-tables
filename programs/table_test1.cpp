@@ -17,6 +17,8 @@ using std::string;
 
 using eoslib::enable_if;
 
+using eos::types::Vector;
+
 template<typename T>
 inline
 typename enable_if<eos::types::reflector<T>::is_struct::value, eos::types::type_id::index_t>::type
@@ -29,7 +31,7 @@ struct type1
 {
    uint32_t a;
    uint64_t b;
-   vector<uint8_t> c;
+   Vector<uint8_t> c;
 };
 
 struct type2
